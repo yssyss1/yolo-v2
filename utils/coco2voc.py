@@ -4,6 +4,7 @@ from cytoolz.compatibility import iteritems
 from scipy.ndimage import imread
 from itertools import starmap
 from lxml import etree, objectify
+from tqdm import tqdm
 import json
 import os
 
@@ -79,7 +80,7 @@ def change_annotations(data_path, subset, destination_path):
     for i, instance in enumerate(instances):
         instances[i]['category_id'] = categories[instance['category_id']]
 
-    for name, group in iteritems(groupby('file_name', instances)):
+    for name, group in tqdm(iteritems(groupby('file_name', instances)), desc='Create annotation xml files'):
         out_name = name.split('.')[-2]
         img = imread(os.path.join(image_path, name))
 
