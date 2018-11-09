@@ -28,22 +28,22 @@ def xml_root(folder, filename, width, height):
     )
 
 
-def instance_to_xml(anno):
+def instance_to_xml(annotation):
     E = objectify.ElementMaker(annotate=False)
-    xmin, ymin, width, height = anno['bbox']
+    x_min, y_min, width, height = annotation['bbox']
     return E.object(
-            E.name(anno['category_id']),
+            E.name(annotation['category_id']),
             E.bndbox(
-                E.xmin(xmin),
-                E.ymin(ymin),
-                E.xmax(xmin+width),
-                E.ymax(ymin+height),
+                E.xmin(x_min),
+                E.ymin(y_min),
+                E.xmax(x_min+width),
+                E.ymax(y_min+height),
                 ),
             )
 
 
-def key_join(leftkey, leftseq, rightkey, rightseq):
-    return starmap(merge, join(leftkey, leftseq, rightkey, rightseq))
+def key_join(left_key, left_seq, right_key, right_seq):
+    return starmap(merge, join(left_key, left_seq, right_key, right_seq))
 
 
 def create_annotation_instance(coco_annotation):
