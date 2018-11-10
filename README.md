@@ -8,8 +8,8 @@ YOLO KERAS VERSION
 ```
 http://images.cocodataset.org/zips/train2014.zip <= train images
 http://images.cocodataset.org/zips/val2014.zip <= validation images
-http://images.cocodataset.org/annotations/annotations_trainval2014.zip <= train and validation anno
-http://github.com/pjreddie/darknet/blob/master/cfg/yolo-voc.cfg <= pretrained weights
+http://images.cocodataset.org/annotations/annotations_trainval2014.zip <= train and validation annotations
+http://github.com/pjreddie/darknet/blob/master/cfg/yolo-voc.cfg <= pretrained weight
 ```
 
 #### Folder Structure
