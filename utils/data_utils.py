@@ -203,3 +203,10 @@ def draw_boxes(image, boxes, grid_h, grid_w, labels):
                     (0, 255, 0), 1)
 
     return image
+
+
+def load_image(image_path):
+    image = cv2.imread(image_path)
+    image = np.array(image[:, :, ::-1])
+
+    return image

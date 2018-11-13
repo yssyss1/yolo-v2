@@ -11,7 +11,7 @@ from utils.data_generator import BatchGenerator
 import os
 import matplotlib.pyplot as plt
 import cv2
-from utils.data_utils import decode_netout, draw_boxes
+from utils.data_utils import decode_netout, draw_boxes, load_image
 
 
 class YOLO:
@@ -282,12 +282,11 @@ class YOLO:
         print("Load weight from {}".format(weight_path))
         self.model.load_weights(weight_path)
 
-        image = cv2.imread(image_path)
+        image = load_image(image_path)
 
         plt.figure(figsize=(10, 10))
 
         input_image = cv2.resize(image, (self.image_height, self.image_width))
-        input_image = input_image[:, :, ::-1]
         input_image = input_image / 255.
         input_image = np.expand_dims(input_image, 0)
 
@@ -303,7 +302,7 @@ class YOLO:
 
         image = draw_boxes(image, boxes, self.grid_h, self.grid_w, labels=self.labels)
 
-        plt.imshow(image[:, :, ::-1])
+        plt.imshow(image)
         plt.show()
 
         print("End Inference...")

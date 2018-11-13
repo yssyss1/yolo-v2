@@ -1,7 +1,7 @@
 from imgaug import augmenters as iaa
 from keras.utils import Sequence
 import copy
-from utils.data_utils import BoundBox, bbox_iou, normalize
+from utils.data_utils import BoundBox, bbox_iou, normalize, load_image
 import cv2
 import numpy as np
 
@@ -125,7 +125,7 @@ class BatchGenerator(Sequence):
 
     def get_image_with_box(self, train_instances, augmentation):
         image_name = train_instances["filename"]
-        image = cv2.imread(image_name)
+        image = load_image(image_name)
 
         if image is None:
             raise FileNotFoundError("Cannot find image {}".format(image_name))
@@ -152,7 +152,6 @@ class BatchGenerator(Sequence):
             image = self.aug_pipe.augment_image(image)
 
         image = cv2.resize(image, (self.config["IMAGE_H"], self.config["IMAGE_W"]))
-        image = image[:, :, ::-1] # opencv는 채널이 BGR이므로 RBG로 채널 변환
 
         for obj in all_objs:
             for attr in ["xmin", "xmax"]:
