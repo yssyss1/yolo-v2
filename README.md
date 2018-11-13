@@ -10,10 +10,15 @@ YOLO KERAS VERSION
     - 2번에서 이동시킨 데이터 경로를 change_annotations 인자들로 넣어준다
 4. 다운받은 weight를 케라스 형식으로 바꾼다 (1.3)
     - 1번에서 다운받은 pretrained weight 경로를 convert_yolo_weight_keras 인자로 넣어준
-5. config/yolo.json을 작성한다 (2.1)다
+5. config/yolo.json을 작성한다 (2.1)
     - 대부분은 수정할 필요없고 배치 사이즈, lr 등 기본적인 Hyperparameter들을 수정한다
 6. 학습한다 (2.2)
 7. Inference (2.3)
+
+3, 4, 6, 7번에서 함수를 실행시킬 때 인자들의 의미를 잘 모르겠다면 
+python [파일 이름.py] [함수 이름] -h 를 실행하길 바람
+ex) python yolo_main.py inference -h
+
 ```
 
 ## 1. Dataset
@@ -50,8 +55,8 @@ python weight_convert.py convert_yolo_weight_keras /somepath/yolov2.weights /som
 
 ### 2.1 Set configuration file 
 ```
-You have to specify hyperparameters and constants in .config/yolo.json. 
-This file will be used for training and inference.
+You have to specify hyperparameters and constants in .config/yolo.json
+This file will be used for training and inference
 ```
 
 ### 2.2 Training
