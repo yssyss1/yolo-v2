@@ -1,6 +1,6 @@
-# Object Detection - YOLO
+# Object Detection - YOLO v2
 
-YOLO KERAS VERSION
+YOLO v2 KERAS VERSION
 
 ## To run
 ```
