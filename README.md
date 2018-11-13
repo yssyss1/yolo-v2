@@ -2,7 +2,7 @@
 
 YOLO KERAS VERSION
 
-##1. Dataset
+## 1. Dataset
 
 ```
 http://images.cocodataset.org/zips/train2014.zip <= train images
@@ -11,7 +11,7 @@ http://images.cocodataset.org/annotations/annotations_trainval2014.zip <= train 
 http://github.com/pjreddie/darknet/blob/master/cfg/yolo-voc.cfg <= pretrained weight
 ```
 
-###1.1 Folder Structure
+### 1.1 Folder Structure
 
       COCO ── ├── annotations              # unzip trainval2014.zip
               ├── images          
@@ -19,7 +19,7 @@ http://github.com/pjreddie/darknet/blob/master/cfg/yolo-voc.cfg <= pretrained we
                         ├── val2014        # unzip val2014.zip
 
 
-###1.2 Convert COCO to Pascal VOC Annotation
+### 1.2 Convert COCO to Pascal VOC Annotation
 
 ```
 python coco2voc.py change_annotations /somepath/COCO train /somepath/dst/train
@@ -32,20 +32,20 @@ python coco2voc.py change_annotations /somepath/COCO val /somepath/dst
 python weight_convert.py convert_yolo_weight_keras /somepath/yolov2.weights /somepath/name.h5
 ```
 
-##2. Training & Inference
+## 2. Training & Inference
 
-###2.1 Set configuration file 
+### 2.1 Set configuration file 
 ```
 You have to specify hyperparameters and constants in .config/yolo.json. 
 This file will be used for training and inference.
 ```
 
-###2.2 Training
+### 2.2 Training
 ```
 python yolo_main.py training ./config/yolo.json
 ```
 
-###2.3 Inference
+### 2.3 Inference
 ```
 python yolo_main.py inference weight_path image_path config_path[optional] obj_threshold[optional] nms_threshold[optional]
 ```
