@@ -13,7 +13,11 @@ YOLO KERAS VERSION
 5. config/yolo.json을 작성한다 (2.1)
     - 대부분은 수정할 필요없고 배치 사이즈, lr 등 기본적인 Hyperparameter들을 수정한다
 6. 학습한다 (2.2)
+    - config_path를 인자로 넣어줘야 함. default 값으로 './config/yolo.json'을 받도록 되어있음
 7. Inference (2.3)
+    - weight_path, image_path 명시해줘야 함
+    - config_path, obj_threshold, nms_threshold는 default 값들을 받도록 되어있음 - optional
+    - 각 default 값들을 config_path: './config/yolo.json' obj_threshold: 0.3, nms_threshold: 0.3
 
 3, 4, 6, 7번에서 함수를 실행시킬 때 인자들의 의미를 잘 모르겠다면 
 python [파일 이름.py] [함수 이름] -h 를 실행하길 바람
