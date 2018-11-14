@@ -9,7 +9,7 @@ import json
 import os
 
 
-def xml_root(folder, filename, width, height):
+def xml_root(folder, filename, height, width):
     E = objectify.ElementMaker(annotate=False)
     return E.annotation(
         E.folder(folder),
