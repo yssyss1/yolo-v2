@@ -72,3 +72,8 @@ python yolo_main.py training ./config/yolo.json
 ```
 python yolo_main.py inference weight_path image_path config_path[optional] obj_threshold[optional] nms_threshold[optional]
 ```
+
+### 2.3 mAP evaluation
+```
+python yolo_main.py evaluate weight_path iou_threshold[optional] config_path[optional]
+```
