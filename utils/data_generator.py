@@ -59,15 +59,11 @@ class BatchGenerator(Sequence):
         instance_count = 0
 
         x_batch = np.zeros((r_bound - l_bound, self.config["IMAGE_H"], self.config["IMAGE_W"], 3))
-        b_batch = np.zeros((r_bound - l_bound, self.config["GRID_H"], self.config["GRID_W"],
-                            self.config["TRUE_BOX_BUFFER"], 4 + 1 + len(self.config["LABELS"])))
         y_batch = np.zeros((r_bound - l_bound, self.config["GRID_H"], self.config["GRID_W"], self.config["BOX"],
                             4 + 1 + len(self.config["LABELS"])))
 
         for train_instance in self.images[l_bound:r_bound]:
             img, all_objs = self.get_image_with_box(train_instance, augmentation=self.augmentation)
-
-            true_box_index = 0
 
             for obj in all_objs:
                 if obj["xmax"] > obj["xmin"] and obj["ymax"] > obj["ymin"] and obj["name"] in self.config["LABELS"]:
@@ -109,16 +105,11 @@ class BatchGenerator(Sequence):
                         y_batch[instance_count, grid_y, grid_x, best_anchor, 4] = 1.
                         y_batch[instance_count, grid_y, grid_x, best_anchor, 5 + obj_indx] = 1
 
-                        b_batch[instance_count, 0, 0, true_box_index, :4] = box
-
-                        true_box_index += 1
-                        true_box_index = true_box_index % self.config["TRUE_BOX_BUFFER"]
-
             x_batch[instance_count] = normalize(img) if self.norm else img
 
             instance_count += 1
 
-        return x_batch, np.concatenate([b_batch, y_batch], axis=-2)
+        return x_batch, y_batch
 
     def on_epoch_end(self):
         if self.shuffle: np.random.shuffle(self.images)

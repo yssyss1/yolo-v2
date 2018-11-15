@@ -28,11 +28,9 @@ class YOLO:
         self.box_num = self.__set_variable('box_num', 5, config)
         self.grid_h = self.__set_variable('grid_h', 13, config)
         self.grid_w = self.__set_variable('grid_w', 13, config)
-        self.true_box_buffer = self.__set_variable('true_box_buffer', 50, config)
         self.class_scale = self.__set_variable('class_scale', 1.0, config)
         self.coord_scale = self.__set_variable('coord_scale', 1.0, config)
         self.no_object_scale = self.__set_variable('no_object_scale', 1.0, config)
-        self.object_scale = self.__set_variable('object_scale', 1.0, config)
         self.batch_size = self.__set_variable('batch_size', 32, config)
         self.pretrained_weight = self.__set_variable('pretrained_weight', None, config)
         self.labels = self.__set_variable('labels', None, config)
@@ -111,18 +109,11 @@ class YOLO:
         return model
 
     def yolo_loss(self, y_true, y_pred):
-        # TODO THIS IS HACK!!!
-        true_boxes = tf.expand_dims(y_true[:, :1, :1, :self.true_box_buffer, :4], axis=3)
-        y_true = y_true[:, :, :, self.true_box_buffer:, :]
-
         coord_mask = tf.expand_dims(y_true[..., 4], axis=-1) * self.coord_scale
 
         cell_x = tf.to_float(tf.reshape(tf.tile(tf.range(self.grid_w), [self.grid_h]), (1, self.grid_h, self.grid_w, 1, 1)))
         cell_y = tf.transpose(cell_x, (0, 2, 1, 3, 4))
         cell_grid = tf.tile(tf.concat([cell_x, cell_y], -1), [self.batch_size, 1, 1, 5, 1])
-
-        seen = tf.Variable(0.)
-        total_recall = tf.Variable(0.)
 
         pred_box_xy = tf.sigmoid(y_pred[..., :2]) + cell_grid
         pred_box_wh = tf.exp(y_pred[..., 2:4]) * np.reshape(self.anchors, [1, 1, 1, self.box_num, 2])
@@ -152,39 +143,11 @@ class YOLO:
 
         true_box_conf = iou_scores * y_true[..., 4]
 
-        true_xy = true_boxes[..., 0:2]
-        true_wh = true_boxes[..., 2:4]
-
-        true_wh_half = true_wh / 2.
-        true_mins = true_xy - true_wh_half
-        true_maxes = true_xy + true_wh_half
-
-        pred_xy = tf.expand_dims(pred_box_xy, 4)
-        pred_wh = tf.expand_dims(pred_box_wh, 4)
-
-        pred_wh_half = pred_wh / 2.
-        pred_mins = pred_xy - pred_wh_half
-        pred_maxes = pred_xy + pred_wh_half
-
-        intersect_mins = tf.maximum(pred_mins, true_mins)
-        intersect_maxes = tf.minimum(pred_maxes, true_maxes)
-        intersect_wh = tf.maximum(intersect_maxes - intersect_mins, 0.)
-        intersect_areas = intersect_wh[..., 0] * intersect_wh[..., 1]
-
-        true_areas = true_wh[..., 0] * true_wh[..., 1]
-        pred_areas = pred_wh[..., 0] * pred_wh[..., 1]
-
-        union_areas = pred_areas + true_areas - intersect_areas
-        iou_scores = tf.truediv(intersect_areas, union_areas)
-        best_ious = tf.reduce_max(iou_scores, axis=4)
-
-        conf_mask = tf.to_float(best_ious < 0.6) * (1 - y_true[..., 4]) * self.no_object_scale
-        conf_mask = conf_mask + y_true[..., 4] * self.object_scale
+        conf_mask = (1 - y_true[..., 4]) * self.no_object_scale
+        conf_mask = conf_mask + y_true[..., 4]
 
         true_box_class = tf.argmax(y_true[..., 5:], -1)
         class_mask = y_true[..., 4]
-
-        seen = tf.assign_add(seen, 1.)
 
         nb_coord_box = tf.reduce_sum(tf.to_float(coord_mask > 0.0))
         nb_conf_box = tf.reduce_sum(tf.to_float(conf_mask > 0.0))
@@ -198,19 +161,11 @@ class YOLO:
 
         loss = loss_xy + loss_wh + loss_conf + loss_class
 
-        nb_true_box = tf.reduce_sum(y_true[..., 4])
-        nb_pred_box = tf.reduce_sum(tf.to_float(true_box_conf > 0.5) * tf.to_float(pred_box_conf > 0.3))
-
-        current_recall = nb_pred_box / (nb_true_box + 1e-6)
-        total_recall = tf.assign_add(total_recall, current_recall)
-
-        loss = tf.Print(loss, [loss_xy], message="Loss Center Position \t", summarize=1000)
-        loss = tf.Print(loss, [loss_wh], message="Loss Width Height \t", summarize=1000)
-        loss = tf.Print(loss, [loss_conf], message="Loss Confidence \t", summarize=1000)
-        loss = tf.Print(loss, [loss_class], message="Loss Classification \t", summarize=1000)
-        loss = tf.Print(loss, [loss], message="Total Loss \t", summarize=1000)
-        loss = tf.Print(loss, [current_recall], message="Current Recall \t", summarize=1000)
-        loss = tf.Print(loss, [total_recall / seen], message="Average Recall \t", summarize=1000)
+        loss = tf.Print(loss, [loss_xy], message="\nLoss Center Position")
+        loss = tf.Print(loss, [loss_wh], message=" Loss Width Height")
+        loss = tf.Print(loss, [loss_conf], message=" Loss Confidence")
+        loss = tf.Print(loss, [loss_class], message=" Loss Classification")
+        loss = tf.Print(loss, [loss], message=" Total Loss")
 
         return loss
 
@@ -225,7 +180,6 @@ class YOLO:
             "CLASS": self.class_num,
             "ANCHORS": self.anchors,
             "BATCH_SIZE": self.batch_size,
-            "TRUE_BOX_BUFFER": self.true_box_buffer,
         }
 
         if self.pretrained_weight is not None:
