@@ -11,7 +11,7 @@ from utils.data_generator import BatchGenerator
 import os
 import matplotlib.pyplot as plt
 import cv2
-from utils.data_utils import decode_netout, draw_boxes, load_image
+from utils.data_utils import decode_netout, draw_boxes, load_image, compute_overlap, compute_ap
 
 
 class YOLO:
@@ -28,7 +28,6 @@ class YOLO:
         self.box_num = self.__set_variable('box_num', 5, config)
         self.grid_h = self.__set_variable('grid_h', 13, config)
         self.grid_w = self.__set_variable('grid_w', 13, config)
-        self.class_scale = self.__set_variable('class_scale', 1.0, config)
         self.coord_scale = self.__set_variable('coord_scale', 1.0, config)
         self.no_object_scale = self.__set_variable('no_object_scale', 1.0, config)
         self.batch_size = self.__set_variable('batch_size', 32, config)
@@ -162,10 +161,10 @@ class YOLO:
         loss = loss_xy + loss_wh + loss_conf + loss_class
 
         loss = tf.Print(loss, [loss_xy], message="\nLoss Center Position")
-        loss = tf.Print(loss, [loss_wh], message=" Loss Width Height")
-        loss = tf.Print(loss, [loss_conf], message=" Loss Confidence")
-        loss = tf.Print(loss, [loss_class], message=" Loss Classification")
-        loss = tf.Print(loss, [loss], message=" Total Loss")
+        loss = tf.Print(loss, [loss_wh], message="Loss Width Height")
+        loss = tf.Print(loss, [loss_conf], message="Loss Confidence")
+        loss = tf.Print(loss, [loss_class], message="Loss Classification")
+        loss = tf.Print(loss, [loss], message="Total Loss")
 
         return loss
 
@@ -260,6 +259,117 @@ class YOLO:
         plt.show()
 
         print("End Inference...")
+
+    def mAP_evalutation(self, iou_threshold, weight_path):
+        if not os.path.exists(weight_path):
+            raise FileNotFoundError('{} is not exists'.format(weight_path))
+
+        generator_config = {
+            "IMAGE_H": self.image_height,
+            "IMAGE_W": self.image_width,
+            "GRID_H": self.grid_h,
+            "GRID_W": self.grid_w,
+            "BOX": self.box_num,
+            "LABELS": self.labels,
+            "CLASS": self.class_num,
+            "ANCHORS": self.anchors,
+            "BATCH_SIZE": self.batch_size,
+        }
+
+        valid_imgs, seen_valid_labels = parse_annotation(self.valid_annotation_path, self.valid_image_path, self.labels, 'validation')
+        valid_generator = BatchGenerator(valid_imgs, generator_config, augmentation=False)
+        generator = valid_generator
+
+        print('Load pretrained weight {}...'.format(weight_path))
+        self.model.load_weights(weight_path)
+
+        all_detections = [[None for i in range(generator.num_classes())] for j in range(generator.size())]
+        all_annotations = [[None for i in range(generator.num_classes())] for j in range(generator.size())]
+
+        for i in range(generator.size()):
+            image = generator.load_image(i)
+            height, width, channels = image.shape
+
+            input_image = cv2.resize(image, (self.image_height, self.image_width))
+            input_image = input_image / 255.
+            input_image = np.expand_dims(input_image, 0)
+
+            netout = self.model.predict(input_image)
+            pred_boxes = decode_netout(netout[0], self.anchors, self.class_num)
+
+            score = np.array([box.score for box in pred_boxes])
+            pred_labels = np.array([box.label for box in pred_boxes])
+
+            if len(pred_boxes) > 0:
+                pred_boxes = np.array([[box.xmin*width/self.grid_w, box.ymin*height/self.grid_h, box.xmax*width/self.grid_w, box.ymax*height/self.grid_h, box.score] for box in pred_boxes])
+            else:
+                pred_boxes = np.array([[]])
+
+            score_sort = np.argsort(-score)
+            pred_labels = pred_labels[score_sort]
+            pred_boxes  = pred_boxes[score_sort]
+
+            for label in range(generator.num_classes()):
+                all_detections[i][label] = pred_boxes[pred_labels == label, :]
+
+            annotations = generator.load_annotation(i)
+
+            for label in range(generator.num_classes()):
+                all_annotations[i][label] = annotations[annotations[:, 4] == label, :4].copy()
+
+        average_precisions = {}
+
+        for label in range(generator.num_classes()):
+            false_positives = np.zeros((0,))
+            true_positives = np.zeros((0,))
+            scores = np.zeros((0,))
+            num_annotations = 0.0
+
+            for i in range(generator.size()):
+                detections = all_detections[i][label]
+                annotations = all_annotations[i][label]
+                num_annotations += annotations.shape[0]
+                detected_annotations = []
+
+                for d in detections:
+                    scores = np.append(scores, d[4])
+
+                    if annotations.shape[0] == 0:
+                        false_positives = np.append(false_positives, 1)
+                        true_positives = np.append(true_positives, 0)
+                        continue
+
+                    overlaps = compute_overlap(np.expand_dims(d, axis=0), annotations)
+                    assigned_annotation = np.argmax(overlaps)
+                    max_overlap = overlaps[assigned_annotation]
+
+                    if max_overlap >= iou_threshold and assigned_annotation not in detected_annotations:
+                        false_positives = np.append(false_positives, 0)
+                        true_positives  = np.append(true_positives, 1)
+                        detected_annotations.append(assigned_annotation)
+                    else:
+                        false_positives = np.append(false_positives, 1)
+                        true_positives  = np.append(true_positives, 0)
+
+            if num_annotations == 0:
+                average_precisions[label] = 0
+                continue
+
+            indices = np.argsort(-scores)
+            false_positives = false_positives[indices]
+            true_positives = true_positives[indices]
+
+            false_positives = np.cumsum(false_positives)
+            true_positives = np.cumsum(true_positives)
+
+            recall = true_positives / num_annotations
+            precision = true_positives / (true_positives + false_positives)
+
+            average_precision = compute_ap(recall, precision)
+            average_precisions[label] = average_precision
+
+        print('mAP: {:.4f}'.format(sum(average_precisions.values()) / len(average_precisions)))
+        return average_precisions
 
     def __set_variable(self, key, default_value, config=None):
         if config is not None:

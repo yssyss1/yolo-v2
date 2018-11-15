@@ -48,6 +48,20 @@ class BatchGenerator(Sequence):
     def size(self):
         return len(self.images)
 
+    def load_image(self, i):
+        return load_image(self.images[i]['filename'])
+
+    def load_annotation(self, i):
+        annots = []
+
+        for obj in self.images[i]['object']:
+            annot = [obj['xmin'], obj['ymin'], obj['xmax'], obj['ymax'], self.config['LABELS'].index(obj['name'])]
+            annots += [annot]
+
+        if len(annots) == 0: annots = [[]]
+
+        return np.array(annots)
+
     def __getitem__(self, idx):
         l_bound = idx * self.config["BATCH_SIZE"]
         r_bound = (idx + 1) * self.config["BATCH_SIZE"]

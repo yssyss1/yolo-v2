@@ -31,5 +31,19 @@ def inference(weight_path, image_path, config_path='./config/yolo.json', obj_thr
         yolo.inference(weight_path, image_path, obj_threshold, nms_threshold)
 
 
+@baker.command(
+    params={
+        "weight_path": "trained weight path - mAP evalution에 사용할 weight의 경로를 명시해줘야함",
+        "iou_threshold": "mAP evalution의 threshold - default: 0.5",
+        "config_path": "config file path - default: ./config/yolo.json",
+    }
+)
+def evaluate(weight_path, iou_threshold = 0.5, config_path='./config/yolo.json'):
+    with open(config_path) as config_file:
+        config = json.load(config_file)
+        yolo = YOLO(config)
+        yolo.mAP_evalutation(iou_threshold, weight_path)
+
+
 if __name__ == '__main__':
     baker.run()

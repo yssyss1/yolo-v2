@@ -69,7 +69,7 @@ def parse_annotation(ann_dir, img_dir, labels, data_name):
     if len(labels) == 0:
         raise ValueError("given label is not valid")
 
-    print("Start Parsing annotions...")
+    print("Start Parsing {} data annotions...".format(data_name))
 
     all_imgs = []
     seen_labels = {}
@@ -117,7 +117,7 @@ def parse_annotation(ann_dir, img_dir, labels, data_name):
         if len(img["object"]) > 0:
             all_imgs += [img]
 
-    print("End Parsing Annotations...")
+    print("End Parsing Annotations!")
 
     return all_imgs, seen_labels
 
@@ -210,3 +210,33 @@ def load_image(image_path):
     image = np.array(image[:, :, ::-1])
 
     return image
+
+
+def compute_overlap(a, b):
+    bounding_box_area = (a[:, 2] - a[:, 0]) * (a[:, 3] - a[:, 1])
+    annotation_area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
+
+    intersect_width = np.minimum(a[:, 2], b[:, 2]) - np.maximum(a[:, 0], b[:, 0])
+    intersect_height = np.minimum(a[:, 3], b[:, 3]) - np.maximum(a[:, 1], b[:, 1])
+
+    intersect_width = np.maximum(intersect_width, 0)
+    intersect_height = np.maximum(intersect_height, 0)
+
+    intersect_area = intersect_width * intersect_height
+
+    union_area = bounding_box_area + annotation_area - intersect_area
+
+    return intersect_area / union_area
+
+
+def compute_ap(recall, precision):
+    mrec = np.concatenate(([0.], recall, [1.]))
+    mpre = np.concatenate(([0.], precision, [0.]))
+
+    for i in range(mpre.size - 1, 0, -1):
+        mpre[i - 1] = np.maximum(mpre[i - 1], mpre[i])
+
+    i = np.where(mrec[1:] != mrec[:-1])[0]
+
+    average_precision = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
+    return average_precision
