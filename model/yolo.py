@@ -28,8 +28,8 @@ class YOLO:
         self.box_num = self.__set_variable('box_num', 5, config)
         self.grid_h = self.__set_variable('grid_h', 13, config)
         self.grid_w = self.__set_variable('grid_w', 13, config)
-        self.coord_scale = self.__set_variable('coord_scale', 1.0, config)
-        self.no_object_scale = self.__set_variable('no_object_scale', 1.0, config)
+        self.coord_scale = self.__set_variable('coord_scale', 5.0, config)
+        self.no_object_scale = self.__set_variable('no_object_scale', 0.5, config)
         self.batch_size = self.__set_variable('batch_size', 32, config)
         self.pretrained_weight = self.__set_variable('pretrained_weight', None, config)
         self.labels = self.__set_variable('labels', None, config)
@@ -88,6 +88,7 @@ class YOLO:
         x = conv_block(filters=1024, kernel_size=(3, 3), strides=(1, 1), idx=16, use_maxpool=False)(x)
         x = conv_block(filters=512, kernel_size=(1, 1), strides=(1, 1), idx=17, use_maxpool=False)(x)
         x = conv_block(filters=1024, kernel_size=(3, 3), strides=(1, 1), idx=18, use_maxpool=False)(x)
+
         x = conv_block(filters=1024, kernel_size=(3, 3), strides=(1, 1), idx=19, use_maxpool=False)(x)
         x = conv_block(filters=1024, kernel_size=(3, 3), strides=(1, 1), idx=20, use_maxpool=False)(x)
 
@@ -261,6 +262,10 @@ class YOLO:
         print("End Inference...")
 
     def mAP_evalutation(self, iou_threshold, weight_path):
+        '''
+        Reference this blog
+        https://datascience.stackexchange.com/questions/25119/how-to-calculate-map-for-detection-task-for-the-pascal-voc-challenge
+        '''
         if not os.path.exists(weight_path):
             raise FileNotFoundError('{} is not exists'.format(weight_path))
 
@@ -369,10 +374,6 @@ class YOLO:
             average_precisions[label] = average_precision
 
         print('mAP: {:.4f}'.format(sum(average_precisions.values()) / len(average_precisions)))
-        return average_precisions
 
-    def __set_variable(self, key, default_value, config=None):
-        if config is not None:
-            return config[key] if key in config.keys() else default_value
-        else:
-            return default_value
+    def __set_variable(self, key, default_value, config):
+        return config[key] if key in config.keys() else default_value

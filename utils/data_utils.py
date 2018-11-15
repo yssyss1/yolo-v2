@@ -77,7 +77,7 @@ def parse_annotation(ann_dir, img_dir, labels, data_name):
     for ann in tqdm(sorted(os.listdir(ann_dir)), desc="Parse {} annotations".format(data_name)):
         img = {"object": []}
 
-        tree = ET.parse(ann_dir + ann)
+        tree = ET.parse(os.path.join(ann_dir, ann))
 
         for elem in tree.iter():
             if "filename" in elem.tag:

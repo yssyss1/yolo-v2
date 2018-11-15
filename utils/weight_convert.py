@@ -14,7 +14,7 @@ class WeightConverter:
             raise FileNotFoundError("{} path is not exist".format(weight_file_path))
         self.all_weights = np.fromfile(weight_file_path, dtype="float32")
 
-        self.model = self.build_model()
+        self.model = self.__build_model()
         self.nb_conv = 23
 
     def read_bytes(self, size):
@@ -24,7 +24,7 @@ class WeightConverter:
     def reset(self):
         self.offset = 4
 
-    def build_model(self):
+    def __build_model(self):
         return yolo(image_width=416, image_height=416, grid_w=13, grid_h=13, class_num=80, box_num=5)
 
     def weight_convert_h5(self, dest_path):

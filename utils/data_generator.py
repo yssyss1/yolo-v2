@@ -32,7 +32,7 @@ class BatchGenerator(Sequence):
                                iaa.Multiply((0.5, 1.5), per_channel=0.5),
                            ],
                            random_order=True
-                           )
+                           ),
             ]
         )
 
@@ -90,7 +90,7 @@ class BatchGenerator(Sequence):
                     grid_y = int(np.floor(center_y))
 
                     if grid_x < self.config["GRID_W"] and grid_y < self.config["GRID_H"]:
-                        obj_indx = self.config["LABELS"].index(obj["name"])
+                        class_idx = self.config["LABELS"].index(obj["name"])
 
                         center_w = (obj["xmax"] - obj["xmin"]) / (
                                 float(self.config["IMAGE_W"]) / self.config["GRID_W"])
@@ -117,7 +117,7 @@ class BatchGenerator(Sequence):
 
                         y_batch[instance_count, grid_y, grid_x, best_anchor, 0:4] = box
                         y_batch[instance_count, grid_y, grid_x, best_anchor, 4] = 1.
-                        y_batch[instance_count, grid_y, grid_x, best_anchor, 5 + obj_indx] = 1
+                        y_batch[instance_count, grid_y, grid_x, best_anchor, 5 + class_idx] = 1
 
             x_batch[instance_count] = normalize(img) if self.norm else img
 
@@ -154,6 +154,7 @@ class BatchGenerator(Sequence):
             if flip > 0.5:
                 image = cv2.flip(image, 1)
 
+            #TODO Rotation
             image = self.aug_pipe.augment_image(image)
 
         image = cv2.resize(image, (self.config["IMAGE_H"], self.config["IMAGE_W"]))
