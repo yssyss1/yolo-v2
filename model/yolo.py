@@ -388,17 +388,12 @@ class YOLO:
         if not cap.isOpened():
             raise NotImplemented('Unable to read camera feed')
 
-        frame_width = int(cap.get(3))
-        frame_height = int(cap.get(4))
-
-        out = cv2.VideoWriter('outpy.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 10, (frame_width, frame_height))
+        print('Video capture start!')
 
         while True:
             ret, frame = cap.read()
 
             if ret:
-                out.write(frame)
-
                 input_image = cv2.resize(frame, (self.image_height, self.image_width))
                 input_image = input_image / 255.
                 input_image = np.expand_dims(input_image, 0)
@@ -413,7 +408,7 @@ class YOLO:
 
                 frame = draw_boxes(frame, boxes, self.grid_h, self.grid_w, labels=self.labels)
 
-                cv2.imshow('frame', frame)
+                cv2.imshow('yolo~~~~', frame)
 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
@@ -422,9 +417,8 @@ class YOLO:
                 break
 
         cap.release()
-        out.release()
-
         cv2.destroyAllWindows()
+        print('Video capture end!')
 
     def __set_variable(self, key, default_value, config):
         return config[key] if key in config.keys() else default_value
