@@ -376,7 +376,6 @@ class YOLO:
         print('mAP: {:.4f}'.format(sum(average_precisions.values()) / len(average_precisions)))
 
     def show_me_camera(self, weight_path, obj_threshold, nms_threshold):
-
         if not os.path.exists(weight_path):
             raise FileNotFoundError('{} is not exists'.format(weight_path))
 
