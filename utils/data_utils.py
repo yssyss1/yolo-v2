@@ -35,7 +35,7 @@ def normalize(image):
     return image / 255.
 
 
-def bbox_iou(box1, box2):
+def bbox_iou(box1: BoundBox, box2: BoundBox):
     intersect_w = interval_overlap([box1.xmin, box1.xmax], [box2.xmin, box2.xmax])
     intersect_h = interval_overlap([box1.ymin, box1.ymax], [box2.ymin, box2.ymax])
 
