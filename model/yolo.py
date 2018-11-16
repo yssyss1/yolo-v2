@@ -375,5 +375,56 @@ class YOLO:
 
         print('mAP: {:.4f}'.format(sum(average_precisions.values()) / len(average_precisions)))
 
+    def show_me_camera(self, weight_path, obj_threshold, nms_threshold):
+
+        if not os.path.exists(weight_path):
+            raise FileNotFoundError('{} is not exists'.format(weight_path))
+
+        print('Load weight from {}'.format(weight_path))
+        self.model.load_weights(weight_path)
+
+        cap = cv2.VideoCapture(0)
+
+        if not cap.isOpened():
+            raise NotImplemented('Unable to read camera feed')
+
+        frame_width = int(cap.get(3))
+        frame_height = int(cap.get(4))
+
+        out = cv2.VideoWriter('outpy.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 10, (frame_width, frame_height))
+
+        while True:
+            ret, frame = cap.read()
+
+            if ret:
+                out.write(frame)
+
+                input_image = cv2.resize(frame, (self.image_height, self.image_width))
+                input_image = input_image / 255.
+                input_image = np.expand_dims(input_image, 0)
+
+                netout = self.model.predict(input_image)
+
+                boxes = decode_netout(netout[0],
+                                      obj_threshold=obj_threshold,
+                                      nms_threshold=nms_threshold,
+                                      anchors=self.anchors,
+                                      nb_class=self.class_num)
+
+                frame = draw_boxes(frame, boxes, self.grid_h, self.grid_w, labels=self.labels)
+
+                cv2.imshow('frame', frame)
+
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+
+            else:
+                break
+
+        cap.release()
+        out.release()
+
+        cv2.destroyAllWindows()
+
     def __set_variable(self, key, default_value, config):
         return config[key] if key in config.keys() else default_value
