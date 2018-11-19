@@ -265,7 +265,8 @@ class YOLO:
 
         print("Start Inference...")
 
-        netout = self.model.predict(input_image)
+        dummy_input = np.zeros((1, 2))
+        netout = self.model.predict([input_image, dummy_input])
 
         boxes = decode_netout(netout[0],
                               shape_dims=(self.grid_h, self.grid_w, self.box_num, 4 + 1 + self.class_num),
@@ -312,6 +313,8 @@ class YOLO:
         all_detections = [[None for i in range(generator.num_classes())] for j in range(generator.size())]
         all_annotations = [[None for i in range(generator.num_classes())] for j in range(generator.size())]
 
+        dummy_input = np.zeros((1,2))
+
         for i in range(generator.size()):
             image = generator.load_image(i)
             height, width, channels = image.shape
@@ -320,7 +323,7 @@ class YOLO:
             input_image = input_image / 255.
             input_image = np.expand_dims(input_image, 0)
 
-            netout = self.model.predict(input_image)
+            netout = self.model.predict([input_image, dummy_input])
             pred_boxes = decode_netout(netout[0], (self.grid_h, self.grid_w, self.box_num, 4 + 1 + self.class_num), self.anchors, self.class_num)
 
             score = np.array([box.score for box in pred_boxes])
@@ -418,9 +421,11 @@ class YOLO:
                 input_image = input_image / 255.
                 input_image = np.expand_dims(input_image, 0)
 
-                netout = self.model.predict(input_image)
+                dummy_input = np.zeros((1, 2))
+                netout = self.model.predict([input_image, dummy_input])
 
                 boxes = decode_netout(netout[0],
+                                      shape_dims=(self.grid_h, self.grid_w, self.box_num, 4 + 1 + self.class_num),
                                       obj_threshold=obj_threshold,
                                       nms_threshold=nms_threshold,
                                       anchors=self.anchors,

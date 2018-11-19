@@ -38,7 +38,7 @@ def inference(weight_path, image_path, config_path='./config/yolo.json', obj_thr
         "config_path": "configuration file path - default: ./config/yolo.json",
     }
 )
-def evaluate(weight_path, iou_threshold = 0.5, config_path='./config/yolo.json'):
+def evaluate(weight_path, iou_threshold=0.5, config_path='./config/yolo.json'):
     with open(config_path) as config_file:
         config = json.load(config_file)
         yolo = YOLO(config)
