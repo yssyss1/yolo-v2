@@ -24,7 +24,7 @@
     "min_lr": 0.5E-7,
     "lr": 0.5E-4,
     "lr_decay_rate": 0.5,
-    "pretrained_weight": "./yolov2.h5",
+    "pretrained_weight": "./yolo.h5",
     "save_path": "./results/",
     "epoch": 100,
     "multi_scale_training":  true

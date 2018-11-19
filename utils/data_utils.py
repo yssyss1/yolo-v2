@@ -74,7 +74,12 @@ def parse_annotation(ann_dir, img_dir, labels, data_name):
     all_imgs = []
     seen_labels = {}
 
+    idx = 0
     for ann in tqdm(sorted(os.listdir(ann_dir)), desc="Parse {} annotations".format(data_name)):
+        idx += 1
+        if idx == 100:
+            break
+
         img = {"object": []}
 
         tree = ET.parse(os.path.join(ann_dir, ann))
@@ -137,7 +142,8 @@ def softmax(x, axis=-1, t=-100.):
     return e_x / e_x.sum(axis, keepdims=True)
 
 
-def decode_netout(netout, anchors, nb_class, obj_threshold=0.3, nms_threshold=0.3):
+def decode_netout(netout, shape_dims, anchors, nb_class, obj_threshold=0.3, nms_threshold=0.3):
+    netout = np.reshape(netout, shape_dims)
     grid_h, grid_w, nb_box = netout.shape[:3]
 
     boxes = []

@@ -39,6 +39,7 @@ class YOLO:
         self.lr_decay_rate = self.__set_variable('lr_decay_rate', 0.5, config)
         self.result_path = self.__set_variable('save_path', './results', config)
         self.epoch = self.__set_variable('epoch', 100, config)
+        self.multi_scale_training = self.__set_variable('multi_scale_training', False, config)
 
         if self.labels is None or self.anchors is None:
             raise ValueError('Label and Anchor must be specified in yolo.json file')
@@ -47,7 +48,7 @@ class YOLO:
 
         self.model = self.build_model()
 
-    def build_model(self):
+    def build_model(self, model_compile=True):
         print("Start Building Model...")
 
         def conv_block(filters, kernel_size, strides, idx, padding="same", use_bias=False, use_batchnorm=True,
@@ -63,7 +64,8 @@ class YOLO:
 
             return _conv_block
 
-        input_image = Input(shape=(self.image_height, self.image_width, 3))
+        input_image = Input(shape=(None, None, 3))
+        grid_dims = Input(shape=(2, ), dtype=tf.int32)
 
         x = conv_block(filters=32, kernel_size=(3, 3), strides=(1, 1), idx=1)(input_image)
         x = conv_block(filters=64, kernel_size=(3, 3), strides=(1, 1), idx=2)(x)
@@ -100,74 +102,91 @@ class YOLO:
 
         x = conv_block(filters=1024, kernel_size=(3, 3), strides=(1, 1), idx=22, use_maxpool=False)(x)
         x = Conv2D(self.box_num * (4 + 1 + self.class_num), (1, 1), strides=(1, 1), padding="same", name="conv_23")(x)
-        output = Reshape((self.grid_h, self.grid_w, self.box_num, 4 + 1 + self.class_num))(x)
 
-        model = Model(input_image, output)
+        output = x
+
+        # DEPRECATED
+        # output = Reshape((self.grid_h, self.grid_w, self.box_num, 4 + 1 + self.class_num))(x)
+
+        model = Model([input_image, grid_dims], output)
         model.summary()
+
+        if model_compile:
+            model.compile(loss=self._compile_loss(grid_dims), optimizer=Adam(lr=self.lr))
 
         print("End Building Model...")
         return model
 
-    def yolo_loss(self, y_true, y_pred):
-        coord_mask = tf.expand_dims(y_true[..., 4], axis=-1) * self.coord_scale
+    def _compile_loss(self, grid_dims):
 
-        cell_x = tf.to_float(tf.reshape(tf.tile(tf.range(self.grid_w), [self.grid_h]), (1, self.grid_h, self.grid_w, 1, 1)))
-        cell_y = tf.transpose(cell_x, (0, 2, 1, 3, 4))
-        cell_grid = tf.tile(tf.concat([cell_x, cell_y], -1), [self.batch_size, 1, 1, 5, 1])
+        def yolo_loss(y_true, y_pred):
 
-        pred_box_xy = tf.sigmoid(y_pred[..., :2]) + cell_grid
-        pred_box_wh = tf.exp(y_pred[..., 2:4]) * np.reshape(self.anchors, [1, 1, 1, self.box_num, 2])
-        pred_box_conf = tf.sigmoid(y_pred[..., 4])
-        pred_box_class = y_pred[..., 5:]
+            grid_h = grid_dims[:, 0][0]
+            grid_w = grid_dims[:, 1][0]
 
-        pred_wh_half = pred_box_wh / 2.
-        pred_mins = pred_box_xy - pred_wh_half
-        pred_maxes = pred_box_xy + pred_wh_half
+            y_pred = tf.reshape(y_pred, (self.batch_size, grid_h, grid_w, self.box_num, 4 + 1 + self.class_num))
+            y_true = tf.reshape(y_true, (self.batch_size, grid_h, grid_w, self.box_num, 4 + 1 + self.class_num))
 
-        true_box_xy = y_true[..., 0:2]
-        true_box_wh = y_true[..., 2:4]
-        true_wh_half = true_box_wh / 2.
-        true_mins = true_box_xy - true_wh_half
-        true_maxes = true_box_xy + true_wh_half
+            coord_mask = tf.expand_dims(y_true[..., 4], axis=-1) * self.coord_scale
 
-        intersect_mins = tf.maximum(pred_mins, true_mins)
-        intersect_maxes = tf.minimum(pred_maxes, true_maxes)
-        intersect_wh = tf.maximum(intersect_maxes - intersect_mins, 0.)
-        intersect_areas = intersect_wh[..., 0] * intersect_wh[..., 1]
+            cell_x = tf.to_float(tf.reshape(tf.tile(tf.range(grid_w), [grid_h]), (1, grid_h, grid_w, 1, 1)))
+            cell_y = tf.transpose(cell_x, (0, 2, 1, 3, 4))
+            cell_grid = tf.tile(tf.concat([cell_x, cell_y], -1), [self.batch_size, 1, 1, 5, 1])
 
-        true_areas = true_box_wh[..., 0] * true_box_wh[..., 1]
-        pred_areas = pred_box_wh[..., 0] * pred_box_wh[..., 1]
+            pred_box_xy = tf.sigmoid(y_pred[..., :2]) + cell_grid
+            pred_box_wh = tf.exp(y_pred[..., 2:4]) * np.reshape(self.anchors, [1, 1, 1, self.box_num, 2])
+            pred_box_conf = tf.sigmoid(y_pred[..., 4])
+            pred_box_class = y_pred[..., 5:]
 
-        union_areas = pred_areas + true_areas - intersect_areas
-        iou_scores = tf.truediv(intersect_areas, union_areas)
+            pred_wh_half = pred_box_wh / 2.
+            pred_mins = pred_box_xy - pred_wh_half
+            pred_maxes = pred_box_xy + pred_wh_half
 
-        true_box_conf = iou_scores * y_true[..., 4]
+            true_box_xy = y_true[..., 0:2]
+            true_box_wh = y_true[..., 2:4]
+            true_wh_half = true_box_wh / 2.
+            true_mins = true_box_xy - true_wh_half
+            true_maxes = true_box_xy + true_wh_half
 
-        conf_mask = (1 - y_true[..., 4]) * self.no_object_scale
-        conf_mask = conf_mask + y_true[..., 4]
+            intersect_mins = tf.maximum(pred_mins, true_mins)
+            intersect_maxes = tf.minimum(pred_maxes, true_maxes)
+            intersect_wh = tf.maximum(intersect_maxes - intersect_mins, 0.)
+            intersect_areas = intersect_wh[..., 0] * intersect_wh[..., 1]
 
-        true_box_class = tf.argmax(y_true[..., 5:], -1)
-        class_mask = y_true[..., 4]
+            true_areas = true_box_wh[..., 0] * true_box_wh[..., 1]
+            pred_areas = pred_box_wh[..., 0] * pred_box_wh[..., 1]
 
-        nb_coord_box = tf.reduce_sum(tf.to_float(coord_mask > 0.0))
-        nb_conf_box = tf.reduce_sum(tf.to_float(conf_mask > 0.0))
-        nb_class_box = tf.reduce_sum(tf.to_float(class_mask > 0.0))
+            union_areas = pred_areas + true_areas - intersect_areas
+            iou_scores = tf.truediv(intersect_areas, union_areas)
 
-        loss_xy = tf.reduce_sum(tf.square(true_box_xy - pred_box_xy) * coord_mask) / (nb_coord_box + 1e-6) / 2.
-        loss_wh = tf.reduce_sum(tf.square(tf.sqrt(true_box_wh) - tf.sqrt(pred_box_wh)) * coord_mask) / (nb_coord_box + 1e-6) / 2.
-        loss_conf = tf.reduce_sum(tf.square(true_box_conf - pred_box_conf) * conf_mask) / (nb_conf_box + 1e-6) / 2.
-        loss_class = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=true_box_class, logits=pred_box_class)
-        loss_class = tf.reduce_sum(loss_class * class_mask) / (nb_class_box + 1e-6)
+            true_box_conf = iou_scores * y_true[..., 4]
 
-        loss = loss_xy + loss_wh + loss_conf + loss_class
+            conf_mask = (1 - y_true[..., 4]) * self.no_object_scale
+            conf_mask = conf_mask + y_true[..., 4]
 
-        loss = tf.Print(loss, [loss_xy], message="\nLoss Center Position")
-        loss = tf.Print(loss, [loss_wh], message="Loss Width Height")
-        loss = tf.Print(loss, [loss_conf], message="Loss Confidence")
-        loss = tf.Print(loss, [loss_class], message="Loss Classification")
-        loss = tf.Print(loss, [loss], message="Total Loss")
+            true_box_class = tf.argmax(y_true[..., 5:], -1)
+            class_mask = y_true[..., 4]
 
-        return loss
+            nb_coord_box = tf.reduce_sum(tf.to_float(coord_mask > 0.0))
+            nb_conf_box = tf.reduce_sum(tf.to_float(conf_mask > 0.0))
+            nb_class_box = tf.reduce_sum(tf.to_float(class_mask > 0.0))
+
+            loss_xy = tf.reduce_sum(tf.square(true_box_xy - pred_box_xy) * coord_mask) / (nb_coord_box + 1e-6) / 2.
+            loss_wh = tf.reduce_sum(tf.square(tf.sqrt(true_box_wh) - tf.sqrt(pred_box_wh)) * coord_mask) / (nb_coord_box + 1e-6) / 2.
+            loss_conf = tf.reduce_sum(tf.square(true_box_conf - pred_box_conf) * conf_mask) / (nb_conf_box + 1e-6) / 2.
+            loss_class = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=true_box_class, logits=pred_box_class)
+            loss_class = tf.reduce_sum(loss_class * class_mask) / (nb_class_box + 1e-6)
+
+            loss = loss_xy + loss_wh + loss_conf + loss_class
+
+            loss = tf.Print(loss, [loss_xy], message="\nLoss Center Position")
+            loss = tf.Print(loss, [loss_wh], message="Loss Width Height")
+            loss = tf.Print(loss, [loss_conf], message="Loss Confidence")
+            loss = tf.Print(loss, [loss_class], message="Loss Classification")
+            loss = tf.Print(loss, [loss], message="Total Loss")
+
+            return loss
+        return yolo_loss
 
     def train(self):
         generator_config = {
@@ -180,6 +199,7 @@ class YOLO:
             "CLASS": self.class_num,
             "ANCHORS": self.anchors,
             "BATCH_SIZE": self.batch_size,
+            "MULTI_SCALE_TRAINING": self.multi_scale_training
         }
 
         if self.pretrained_weight is not None:
@@ -213,8 +233,6 @@ class YOLO:
         reduce_lr = ReduceLROnPlateau(monitor="val_loss", factor=self.lr_decay_rate,
                                       patience=5, min_lr=self.min_lr)
 
-        self.model.compile(loss=self.yolo_loss, optimizer=Adam(lr=self.lr))
-
         print("Start Training...")
         self.model.fit_generator(generator=train_generator,
                                  steps_per_epoch=len(train_generator),
@@ -223,6 +241,7 @@ class YOLO:
                                  validation_data=valid_generator,
                                  validation_steps=len(valid_generator),
                                  callbacks=[checkpoint, reduce_lr],
+                                 shuffle=False
                                  )
         print("End Training!")
 
@@ -249,10 +268,12 @@ class YOLO:
         netout = self.model.predict(input_image)
 
         boxes = decode_netout(netout[0],
-                              obj_threshold=obj_threshold,
-                              nms_threshold=nms_threshold,
+                              shape_dims=(self.grid_h, self.grid_w, self.box_num, 4 + 1 + self.class_num),
                               anchors=self.anchors,
-                              nb_class=self.class_num)
+                              nb_class=self.class_num,
+                              obj_threshold=obj_threshold,
+                              nms_threshold=nms_threshold
+                              )
 
         image = draw_boxes(image, boxes, self.grid_h, self.grid_w, labels=self.labels)
 
@@ -300,7 +321,7 @@ class YOLO:
             input_image = np.expand_dims(input_image, 0)
 
             netout = self.model.predict(input_image)
-            pred_boxes = decode_netout(netout[0], self.anchors, self.class_num)
+            pred_boxes = decode_netout(netout[0], (self.grid_h, self.grid_w, self.box_num, 4 + 1 + self.class_num), self.anchors, self.class_num)
 
             score = np.array([box.score for box in pred_boxes])
             pred_labels = np.array([box.label for box in pred_boxes])

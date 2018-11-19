@@ -8,6 +8,7 @@ import numpy as np
 
 class BatchGenerator(Sequence):
     def __init__(self, images, config, shuffle=True, augmentation=True, norm=True):
+        super()
         self.generator = None
 
         self.images = images
@@ -16,6 +17,7 @@ class BatchGenerator(Sequence):
         self.shuffle = shuffle
         self.augmentation = augmentation
         self.norm = norm
+        self.scale_factor = 0
 
         self.anchors = [BoundBox(0, 0, config["ANCHORS"][2 * i], config["ANCHORS"][2 * i + 1]) for i in
                         range(int(len(config["ANCHORS"]) // 2))]
@@ -66,36 +68,51 @@ class BatchGenerator(Sequence):
         l_bound = idx * self.config["BATCH_SIZE"]
         r_bound = (idx + 1) * self.config["BATCH_SIZE"]
 
+        if idx % 10 == 0:
+            self.scale_factor = np.random.randint(-3, 7, 1)[0] if self.config["MULTI_SCALE_TRAINING"] else 0
+
+        # print("idx: {}".format(idx))
+        # print("scale: {}".format(self.scale_factor))
+        image_width = self.config["IMAGE_W"] + (self.config["IMAGE_W"] // self.config["GRID_W"] * self.scale_factor)
+        image_height = self.config["IMAGE_H"] + (self.config["IMAGE_H"] // self.config["GRID_H"] * self.scale_factor)
+
+        grid_w = self.config["GRID_W"] + self.scale_factor
+        grid_h = self.config["GRID_H"] + self.scale_factor
+
+        grid_dims = np.tile(np.array([grid_h, grid_w]), (self.config["BATCH_SIZE"], 1))
+
+        # print("width: {}, height: {}, grid_w: {}, grid_h: {}".format(image_width, image_height, grid_w, grid_h))
+
         if r_bound > len(self.images):
             r_bound = len(self.images)
             l_bound = r_bound - self.config["BATCH_SIZE"]
 
         instance_count = 0
 
-        x_batch = np.zeros((r_bound - l_bound, self.config["IMAGE_H"], self.config["IMAGE_W"], 3))
-        y_batch = np.zeros((r_bound - l_bound, self.config["GRID_H"], self.config["GRID_W"], self.config["BOX"],
-                            4 + 1 + len(self.config["LABELS"])))
+        x_batch = np.zeros((self.config["BATCH_SIZE"], image_height, image_width, 3))
+        y_batch = np.zeros((self.config["BATCH_SIZE"], grid_h, grid_w, self.config["BOX"],
+                            4 + 1 + self.config["CLASS"]))
 
         for train_instance in self.images[l_bound:r_bound]:
-            img, all_objs = self.get_image_with_box(train_instance, augmentation=self.augmentation)
+            img, all_objs = self.get_image_with_box(train_instance, image_height, image_width, augmentation=self.augmentation)
 
             for obj in all_objs:
                 if obj["xmax"] > obj["xmin"] and obj["ymax"] > obj["ymin"] and obj["name"] in self.config["LABELS"]:
                     center_x = .5 * (obj["xmin"] + obj["xmax"])
-                    center_x = center_x / (float(self.config["IMAGE_W"]) / self.config["GRID_W"])
+                    center_x = center_x / (float(image_width) / grid_w)
                     center_y = .5 * (obj["ymin"] + obj["ymax"])
-                    center_y = center_y / (float(self.config["IMAGE_H"]) / self.config["GRID_H"])
+                    center_y = center_y / (float(image_height) / grid_h)
 
                     grid_x = int(np.floor(center_x))
                     grid_y = int(np.floor(center_y))
 
-                    if grid_x < self.config["GRID_W"] and grid_y < self.config["GRID_H"]:
+                    if grid_x < grid_w and grid_y < grid_h:
                         class_idx = self.config["LABELS"].index(obj["name"])
 
                         center_w = (obj["xmax"] - obj["xmin"]) / (
-                                float(self.config["IMAGE_W"]) / self.config["GRID_W"])
+                                float(image_width) / grid_w)
                         center_h = (obj["ymax"] - obj["ymin"]) / (
-                                float(self.config["IMAGE_H"]) / self.config["GRID_H"])
+                                float(image_height) / grid_h)
 
                         box = [center_x, center_y, center_w, center_h]
 
@@ -120,15 +137,15 @@ class BatchGenerator(Sequence):
                         y_batch[instance_count, grid_y, grid_x, best_anchor, 5 + class_idx] = 1
 
             x_batch[instance_count] = normalize(img) if self.norm else img
-
             instance_count += 1
 
-        return x_batch, y_batch
+        y_batch = np.reshape(y_batch, (self.config["BATCH_SIZE"], grid_h, grid_w, self.config["BOX"]*(4 + 1 + self.config["CLASS"])))
+        return [x_batch, grid_dims], y_batch
 
     def on_epoch_end(self):
         if self.shuffle: np.random.shuffle(self.images)
 
-    def get_image_with_box(self, train_instances, augmentation):
+    def get_image_with_box(self, train_instances, image_height, image_width, augmentation):
         image_name = train_instances["filename"]
         image = load_image(image_name)
 
@@ -157,26 +174,26 @@ class BatchGenerator(Sequence):
             #TODO Rotation
             image = self.aug_pipe.augment_image(image)
 
-        image = cv2.resize(image, (self.config["IMAGE_H"], self.config["IMAGE_W"]))
+        image = cv2.resize(image, (image_height, image_width))
 
         for obj in all_objs:
             for attr in ["xmin", "xmax"]:
                 if augmentation:
                     obj[attr] = int(obj[attr] * scale - offx)
 
-                obj[attr] = int(obj[attr] * float(self.config["IMAGE_W"]) / w)
-                obj[attr] = max(min(obj[attr], self.config["IMAGE_W"]), 0)
+                obj[attr] = int(obj[attr] * float(image_width) / w)
+                obj[attr] = max(min(obj[attr], image_width), 0)
 
             for attr in ["ymin", "ymax"]:
                 if augmentation:
                     obj[attr] = int(obj[attr] * scale - offy)
 
-                obj[attr] = int(obj[attr] * float(self.config["IMAGE_H"]) / h)
-                obj[attr] = max(min(obj[attr], self.config["IMAGE_H"]), 0)
+                obj[attr] = int(obj[attr] * float(image_height) / h)
+                obj[attr] = max(min(obj[attr], image_height), 0)
 
             if augmentation and flip > 0.5:
                 xmin = obj["xmin"]
-                obj["xmin"] = self.config["IMAGE_W"] - obj["xmax"]
-                obj["xmax"] = self.config["IMAGE_W"] - xmin
+                obj["xmin"] = image_width - obj["xmax"]
+                obj["xmax"] = image_width - xmin
 
         return image, all_objs
