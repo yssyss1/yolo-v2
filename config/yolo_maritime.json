@@ -1,0 +1,23 @@
+{
+	"train_image_path": "/home/seok/singapore_maritime/train/image",
+	"train_annotation_path": "/home/seok/singapore_maritime/train/annotation",
+    "valid_image_path": "/home/seok/singapore_maritime/valid/image",
+    "valid_annotation_path": "/home/seok/singapore_maritime/valid/annotation",
+    "labels": ["Ferry", "Buoy", "Vessel/ship", "Speed boat", "Boat", "Kayak", "Sail boat", "Swimming person", "Flying bird/plane", "Other"],
+    "anchors": [0.57273, 0.677385, 1.87446, 2.06253, 3.33843, 5.47434, 7.88282, 3.52778, 9.77052, 9.16828],
+    "box_num": 5,
+    "batch_size": 2,
+    "grid_w": 13,
+    "grid_h": 13,
+    "coord_scale": 5.0,
+    "no_object_scale": 0.5,
+    "image_width": 416,
+    "image_height": 416,
+    "min_lr": 0.5E-7,
+    "lr": 0.5E-4,
+    "lr_decay_rate": 0.5,
+    "pretrained_weight": "./yolov2.h5",
+    "save_path": "./results/",
+    "epoch": 10000,
+    "multi_scale_training":  true
+}
