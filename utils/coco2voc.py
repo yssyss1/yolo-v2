@@ -9,22 +9,15 @@ import json
 import os
 
 
-def xml_root(folder, filename, height, width):
+def xml_root(filename, height, width):
     E = objectify.ElementMaker(annotate=False)
     return E.annotation(
-        E.folder(folder),
         E.filename(filename),
-        E.source(
-            E.database("MS COCO 2014"),
-            E.annotation("MS COCO 2014"),
-            E.image("Flickr"),
-        ),
         E.size(
             E.width(width),
             E.height(height),
             E.depth(3),
-        ),
-        E.segmented(0)
+        )
     )
 
 
@@ -85,7 +78,7 @@ def change_annotations(data_path, subset, destination_path):
         img = imread(os.path.join(image_path, name))
 
         if img.ndim == 3:
-            annotation = xml_root("VOC2014", "{}.jpg".format(out_name), group[0]["height"], group[0]["width"])
+            annotation = xml_root("{}.jpg".format(out_name), group[0]["height"], group[0]["width"])
 
             for instance in group:
                 annotation.append(instance_to_xml(instance))
