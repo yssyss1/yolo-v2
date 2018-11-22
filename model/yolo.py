@@ -12,6 +12,7 @@ import os
 import matplotlib.pyplot as plt
 import cv2
 from utils.data_utils import decode_netout, draw_boxes, load_image, compute_overlap, compute_ap
+from tqdm import tqdm
 
 
 class YOLO:
@@ -316,7 +317,7 @@ class YOLO:
 
         dummy_input = np.zeros((1,2))
 
-        for i in range(generator.size()):
+        for i in tqdm(range(generator.size()), desc='mAP evaluation'):
             image = generator.load_image(i)
             height, width, channels = image.shape
 

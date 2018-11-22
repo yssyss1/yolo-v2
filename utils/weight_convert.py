@@ -16,7 +16,7 @@ class WeightConverter:
         self.all_weights = np.fromfile(weight_file_path, dtype="float32")
 
         self.model = self.__build_model(config_path)
-        self.nb_conv = 22
+        self.nb_conv = 23
 
     def read_bytes(self, size):
         self.offset = self.offset + size

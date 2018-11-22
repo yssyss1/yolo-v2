@@ -74,12 +74,7 @@ def parse_annotation(ann_dir, img_dir, labels, data_name):
     all_imgs = []
     seen_labels = {}
 
-    idx = 0
     for ann in tqdm(sorted(os.listdir(ann_dir)), desc="Parse {} annotations".format(data_name)):
-        idx += 1
-        if idx == 10:
-            break
-
         img = {"object": []}
 
         tree = ET.parse(os.path.join(ann_dir, ann))
@@ -195,10 +190,10 @@ def draw_boxes(image, boxes, grid_h, grid_w, labels):
     image_h, image_w, _ = image.shape
 
     for box in boxes:
-        xmin = int(box.xmin * image_w / grid_w)
-        ymin = int(box.ymin * image_h / grid_h)
-        xmax = int(box.xmax * image_w / grid_w)
-        ymax = int(box.ymax * image_h / grid_h)
+        xmin = max(int(box.xmin * image_w / grid_w), 0)
+        ymin = max(int(box.ymin * image_h / grid_h), 0)
+        xmax = min(int(box.xmax * image_w / grid_w), image_w)
+        ymax = max(int(box.ymax * image_h / grid_h), image_h)
 
         cv2.rectangle(image, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
         cv2.putText(image,
