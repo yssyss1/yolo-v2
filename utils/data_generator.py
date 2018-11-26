@@ -1,23 +1,25 @@
 from imgaug import augmenters as iaa
 from keras.utils import Sequence
 import copy
-from utils.data_utils import BoundBox, bbox_iou, normalize, load_image
+from utils.data_utils import BoundBox, bbox_iou, normalize
 import cv2
 import numpy as np
 
 
 class BatchGenerator(Sequence):
-    def __init__(self, images, config, shuffle=True, augmentation=True, norm=True):
-        super()
+    def __init__(self, images, annotations, config, shuffle=True, augmentation=True, norm=True):
+        super().__init__()
         self.generator = None
 
         self.images = images
+        self.annotations = annotations
         self.config = config
 
         self.shuffle = shuffle
         self.augmentation = augmentation
         self.norm = norm
         self.scale_factor = 0
+        self.batch_idx = np.arange(len(self.annotations))
 
         self.anchors = [BoundBox(0, 0, config["ANCHORS"][2 * i], config["ANCHORS"][2 * i + 1]) for i in
                         range(int(len(config["ANCHORS"]) // 2))]
@@ -25,54 +27,46 @@ class BatchGenerator(Sequence):
         # https://github.com/aleju/imgaug에서 Data Augmentation Function들 참고할 것.
         self.aug_pipe = iaa.Sequential(
             [
-                iaa.SomeOf((0, 5),
-                           [
-                               iaa.GaussianBlur((0, 3.0)),
-                               iaa.Sharpen(alpha=(0, 1.0), lightness=(0.75, 1.5)),
-                               iaa.AdditiveGaussianNoise(loc=0, scale=(0.0, 0.05 * 255), per_channel=0.5),
-                               iaa.Dropout((0.01, 0.1), per_channel=0.5),
-                               iaa.Multiply((0.5, 1.5), per_channel=0.5),
-                           ],
-                           random_order=True
-                           ),
+                iaa.Sometimes(0.2, [iaa.GaussianBlur((0, 2.0))]),
+                iaa.Sometimes(0.5, [iaa.Add((-25, 25))]),
             ]
         )
 
         if shuffle:
-            np.random.shuffle(self.images)
+            np.random.shuffle(self.batch_idx)
 
     def __len__(self):
-        return int(np.ceil(float(len(self.images)) / self.config["BATCH_SIZE"]))
+        return int(np.ceil(float(len(self.annotations)) / self.config["BATCH_SIZE"]))
 
     def num_classes(self):
         return len(self.config["LABELS"])
 
     def size(self):
-        return len(self.images)
+        return len(self.annotations)
 
     def load_image(self, i):
-        return load_image(self.images[i]['filename'])
+        return self.images[i]
 
     def load_annotation(self, i):
         annots = []
 
-        for obj in self.images[i]['object']:
+        for obj in self.annotations[i]['object']:
             annot = [obj['xmin'], obj['ymin'], obj['xmax'], obj['ymax'], self.config['LABELS'].index(obj['name'])]
             annots += [annot]
 
-        if len(annots) == 0: annots = [[]]
+        if len(annots) == 0:
+            annots = [[]]
 
         return np.array(annots)
 
     def __getitem__(self, idx):
+        idx = 0
         l_bound = idx * self.config["BATCH_SIZE"]
         r_bound = (idx + 1) * self.config["BATCH_SIZE"]
 
         if idx % 10 == 0:
             self.scale_factor = np.random.randint(-3, 7, 1)[0] if self.config["MULTI_SCALE_TRAINING"] else 0
 
-        # print("idx: {}".format(idx))
-        # print("scale: {}".format(self.scale_factor))
         image_width = self.config["IMAGE_W"] + (self.config["IMAGE_W"] // self.config["GRID_W"] * self.scale_factor)
         image_height = self.config["IMAGE_H"] + (self.config["IMAGE_H"] // self.config["GRID_H"] * self.scale_factor)
 
@@ -81,10 +75,8 @@ class BatchGenerator(Sequence):
 
         grid_dims = np.tile(np.array([grid_h, grid_w]), (self.config["BATCH_SIZE"], 1))
 
-        # print("width: {}, height: {}, grid_w: {}, grid_h: {}".format(image_width, image_height, grid_w, grid_h))
-
-        if r_bound > len(self.images):
-            r_bound = len(self.images)
+        if r_bound > len(self.annotations):
+            r_bound = len(self.annotations)
             l_bound = r_bound - self.config["BATCH_SIZE"]
 
         instance_count = 0
@@ -93,8 +85,11 @@ class BatchGenerator(Sequence):
         y_batch = np.zeros((self.config["BATCH_SIZE"], grid_h, grid_w, self.config["BOX"],
                             4 + 1 + self.config["CLASS"]))
 
-        for train_instance in self.images[l_bound:r_bound]:
-            img, all_objs = self.get_image_with_box(train_instance, image_height, image_width, augmentation=self.augmentation)
+        for idx in self.batch_idx[l_bound:r_bound]:
+            batch_image = self.images[idx]
+            batch_annotations = self.annotations[idx]
+
+            img, all_objs = self.get_image_with_box(batch_image, batch_annotations, image_height, image_width, augmentation=self.augmentation)
 
             for obj in all_objs:
                 if obj["xmax"] > obj["xmin"] and obj["ymax"] > obj["ymin"] and obj["name"] in self.config["LABELS"]:
@@ -143,17 +138,12 @@ class BatchGenerator(Sequence):
         return [x_batch, grid_dims], y_batch
 
     def on_epoch_end(self):
-        if self.shuffle: np.random.shuffle(self.images)
+        if self.shuffle:
+            np.random.shuffle(self.batch_idx)
 
-    def get_image_with_box(self, train_instances, image_height, image_width, augmentation):
-        image_name = train_instances["filename"]
-        image = load_image(image_name)
-
-        if image is None:
-            raise FileNotFoundError("Cannot find image {}".format(image_name))
-
+    def get_image_with_box(self, image, annotations, image_height, image_width, augmentation):
         h, w, c = image.shape
-        all_objs = copy.deepcopy(train_instances["object"])
+        all_objs = copy.deepcopy(annotations["object"])
 
         if augmentation:
 

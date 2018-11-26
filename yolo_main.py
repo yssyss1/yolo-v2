@@ -28,7 +28,7 @@ def inference(weight_path, image_path, config_path='./config/yolo.json', obj_thr
     with open(config_path) as config_file:
         config = json.load(config_file)
         yolo = YOLO(config)
-        yolo.inference(weight_path, image_path, obj_threshold, nms_threshold)
+        yolo.inference(weight_path, image_path, float(obj_threshold), float(nms_threshold))
 
 
 @baker.command(
@@ -42,7 +42,7 @@ def evaluate(weight_path, iou_threshold=0.5, config_path='./config/yolo.json'):
     with open(config_path) as config_file:
         config = json.load(config_file)
         yolo = YOLO(config)
-        yolo.mAP_evalutation(iou_threshold, weight_path)
+        yolo.mAP_evalutation(float(iou_threshold), weight_path)
 
 
 @baker.command(
@@ -57,7 +57,7 @@ def show_me_camera(weight_path, config_path='./config/yolo.json', obj_threshold=
     with open(config_path) as config_file:
         config = json.load(config_file)
         yolo = YOLO(config)
-        yolo.show_me_camera(weight_path, obj_threshold, nms_threshold)
+        yolo.show_me_camera(weight_path, float(obj_threshold), float(nms_threshold))
 
 
 if __name__ == '__main__':

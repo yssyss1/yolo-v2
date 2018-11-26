@@ -26,7 +26,6 @@ class PriorAnchors():
 
         annotations = []
 
-        i = 0 # for debug
         for image in train_imgs:
             cell_w = image['width'] / self.grid_w
             cell_h = image['height'] / self.grid_h
@@ -35,11 +34,6 @@ class PriorAnchors():
                 relative_w = (float(obj['xmax']) - obj['xmin']) / cell_w
                 relatice_h = (float(obj["ymax"]) - obj['ymin']) / cell_h
                 annotations.append((relative_w, relatice_h))
-
-            i += 1
-            print(i)
-            if i == 100:
-                break
 
         annotations = np.array(annotations)
         prior_anchors = self._kmeans(annotations)

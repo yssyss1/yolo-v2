@@ -64,7 +64,7 @@ def interval_overlap(interval_a, interval_b):
         else:
             return min(x2, x4) - x3
 
-
+# TODO - Deprecated
 def parse_annotation(ann_dir, img_dir, labels, data_name):
     if len(labels) == 0:
         raise ValueError("given label is not valid")
@@ -193,7 +193,7 @@ def draw_boxes(image, boxes, grid_h, grid_w, labels):
         xmin = max(int(box.xmin * image_w / grid_w), 0)
         ymin = max(int(box.ymin * image_h / grid_h), 0)
         xmax = min(int(box.xmax * image_w / grid_w), image_w)
-        ymax = max(int(box.ymax * image_h / grid_h), image_h)
+        ymax = min(int(box.ymax * image_h / grid_h), image_h)
 
         cv2.rectangle(image, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
         cv2.putText(image,
@@ -202,7 +202,6 @@ def draw_boxes(image, boxes, grid_h, grid_w, labels):
                     cv2.FONT_HERSHEY_SIMPLEX,
                     1e-3 * image_h,
                     (0, 255, 0), 1)
-
     return image
 
 
@@ -241,3 +240,7 @@ def compute_ap(recall, precision):
 
     average_precision = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
     return average_precision
+
+
+def load_npy(file_path):
+    return np.load(file_path)

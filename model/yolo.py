@@ -3,7 +3,7 @@ from keras.layers import Reshape, Conv2D, Input, MaxPooling2D, BatchNormalizatio
 from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.merge import concatenate
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
-from keras.optimizers import Adam
+from keras.optimizers import Adam, SGD, RMSprop
 import tensorflow as tf
 import numpy as np
 from utils.data_utils import parse_annotation
@@ -11,7 +11,7 @@ from utils.data_generator import BatchGenerator
 import os
 import matplotlib.pyplot as plt
 import cv2
-from utils.data_utils import decode_netout, draw_boxes, load_image, compute_overlap, compute_ap
+from utils.data_utils import decode_netout, softmax, draw_boxes, load_image, compute_overlap, compute_ap, load_npy
 from tqdm import tqdm
 
 
@@ -102,7 +102,7 @@ class YOLO:
         x = concatenate([skip_connection, x])
 
         x = conv_block(filters=1024, kernel_size=(3, 3), strides=(1, 1), idx=22, use_maxpool=False)(x)
-        x = Conv2D(self.box_num * (4 + 1 + self.class_num), (1, 1), strides=(1, 1), padding="same", name="conv_23")(x)
+        x = Conv2D(self.box_num * (4 + 1 + self.class_num), (1, 1), strides=(1, 1), padding="same", name="conv_23", kernel_initializer='glorot_normal')(x)
 
         output = x
 
@@ -114,7 +114,7 @@ class YOLO:
 
         #TODO - Train 때만 compile 하도록 수정하기
         if model_compile:
-            model.compile(loss=self._compile_loss(grid_dims), optimizer=Adam(lr=self.lr))
+            model.compile(loss=self._compile_loss(grid_dims), optimizer=RMSprop(lr=self.lr))
 
         print("End Building Model...")
         return model
@@ -133,7 +133,15 @@ class YOLO:
 
             cell_x = tf.to_float(tf.reshape(tf.tile(tf.range(grid_w), [grid_h]), (1, grid_h, grid_w, 1, 1)))
             cell_y = tf.transpose(cell_x, (0, 2, 1, 3, 4))
-            cell_grid = tf.tile(tf.concat([cell_x, cell_y], -1), [self.batch_size, 1, 1, 5, 1])
+            cell_grid = tf.tile(tf.concat([cell_x, cell_y], -1), [self.batch_size, 1, 1, self.box_num, 1])
+
+            # y_pred = tf.Print(y_pred, [tf.sigmoid(y_pred[0, 4, 2, 1, :2]) + tf.constant([2,4], dtype=tf.float32),
+            #                            tf.exp(y_pred[0, 4, 2, 1, 2:4])*tf.constant([1.87446, 2.06253], dtype=tf.float32),
+            #                            tf.arg_max(y_pred[0, 4, 2, 1, 5:], dimension=-1), tf.sigmoid(y_pred[0, 4, 2, 1, 4]),
+            #                            tf.reduce_max(tf.sigmoid(y_pred[..., 4]))
+            #                            ], message='y_pred',
+            #                   summarize=1000)
+            # y_true = tf.Print(y_true, [y_true[0, 4, 2, 1]], message='y_true', summarize=1000)
 
             pred_box_xy = tf.sigmoid(y_pred[..., :2]) + cell_grid
             pred_box_wh = tf.exp(y_pred[..., 2:4]) * np.reshape(self.anchors, [1, 1, 1, self.box_num, 2])
@@ -174,7 +182,7 @@ class YOLO:
             nb_class_box = tf.reduce_sum(tf.to_float(class_mask > 0.0))
 
             loss_xy = tf.reduce_sum(tf.square(true_box_xy - pred_box_xy) * coord_mask) / (nb_coord_box + 1e-6) / 2.
-            loss_wh = tf.reduce_sum(tf.square(tf.sqrt(true_box_wh) - tf.sqrt(pred_box_wh)) * coord_mask) / (nb_coord_box + 1e-6) / 2.
+            loss_wh = tf.reduce_sum(tf.square(true_box_wh - pred_box_wh) * coord_mask) / (nb_coord_box + 1e-6) / 2.
             loss_conf = tf.reduce_sum(tf.square(true_box_conf - pred_box_conf) * conf_mask) / (nb_conf_box + 1e-6) / 2.
             loss_class = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=true_box_class, logits=pred_box_class)
             loss_class = tf.reduce_sum(loss_class * class_mask) / (nb_class_box + 1e-6)
@@ -212,25 +220,34 @@ class YOLO:
             self.model.load_weights(self.pretrained_weight)
 
         if not os.path.exists(self.train_image_path) or not os.path.exists(self.train_annotation_path):
-            raise FileNotFoundError("train dataset folders are not found")
+            raise FileNotFoundError("train dataset files are not found")
         if not os.path.exists(self.valid_image_path) or not os.path.exists(self.train_annotation_path):
-            raise FileNotFoundError("valid dataset folders are not found")
+            raise FileNotFoundError("valid dataset files are not found")
 
         weight_save_path = os.path.join(self.result_path, "weight")
         os.makedirs(weight_save_path, exist_ok=True)
 
-        train_imgs, seen_train_labels = parse_annotation(self.train_annotation_path, self.train_image_path, self.labels, 'train')
-        train_generator = BatchGenerator(train_imgs, generator_config)
+        train_imgs = load_npy(self.train_image_path)
+        train_annotations = load_npy(self.train_annotation_path)
+        train_generator = BatchGenerator(train_imgs, train_annotations, generator_config, augmentation=True, shuffle=True)
 
-        valid_imgs, seen_valid_labels = parse_annotation(self.valid_annotation_path, self.valid_image_path, self.labels, 'validation')
-        valid_generator = BatchGenerator(valid_imgs, generator_config, augmentation=False)
+        valid_imgs = load_npy(self.valid_image_path)
+        valid_annotations = load_npy(self.valid_annotation_path)
+        valid_generator = BatchGenerator(valid_imgs, valid_annotations, generator_config, augmentation=False, shuffle=False)
 
-        checkpoint = ModelCheckpoint(filepath=os.path.join(weight_save_path, "weights_coco.h5"),
-                                     monitor="val_loss",
-                                     verbose=1,
-                                     save_best_only=True,
-                                     mode="min",
-                                     period=1)
+        checkpoint_train = ModelCheckpoint(filepath=os.path.join(weight_save_path, "weights_train.h5"),
+                                           verbose=1,
+                                           save_weights_only=True,
+                                           mode="min",
+                                           period=10)
+
+        checkpoint_valid = ModelCheckpoint(filepath=os.path.join(weight_save_path, "weights_valid.h5"),
+                                           monitor='val_loss',
+                                           verbose=1,
+                                           save_best_only=True,
+                                           save_weights_only=True,
+                                           mode="min",
+                                           period=1)
 
         reduce_lr = ReduceLROnPlateau(monitor="val_loss", factor=self.lr_decay_rate,
                                       patience=5, min_lr=self.min_lr)
@@ -242,9 +259,10 @@ class YOLO:
                                  verbose=1,
                                  validation_data=valid_generator,
                                  validation_steps=len(valid_generator),
-                                 callbacks=[checkpoint, reduce_lr],
-                                 shuffle=False
-                                 )
+                                 callbacks=[checkpoint_train, checkpoint_valid, reduce_lr],
+                                 shuffle=False,
+                                 workers=8,
+                                 max_queue_size=50)
         print("End Training!")
 
     def inference(self, weight_path, image_path, obj_threshold, nms_threshold):
@@ -305,8 +323,9 @@ class YOLO:
             "BATCH_SIZE": self.batch_size,
         }
 
-        valid_imgs, seen_valid_labels = parse_annotation(self.valid_annotation_path, self.valid_image_path, self.labels, 'validation')
-        valid_generator = BatchGenerator(valid_imgs, generator_config, augmentation=False)
+        valid_imgs = load_npy(self.valid_image_path)
+        valid_annotations = load_npy(self.valid_annotation_path)
+        valid_generator = BatchGenerator(valid_imgs, valid_annotations, generator_config, augmentation=False)
         generator = valid_generator
 
         print('Load pretrained weight {}...'.format(weight_path))
