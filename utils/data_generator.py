@@ -60,7 +60,6 @@ class BatchGenerator(Sequence):
         return np.array(annots)
 
     def __getitem__(self, idx):
-        idx = 0
         l_bound = idx * self.config["BATCH_SIZE"]
         r_bound = (idx + 1) * self.config["BATCH_SIZE"]
 

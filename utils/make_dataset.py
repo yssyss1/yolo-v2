@@ -12,12 +12,13 @@ def dataset_check(image_dir, xml_dir, labels, name):
     if not os.path.exists(image_dir):
         raise FileNotFoundError('{} is not exists'.format(image_dir))
 
+    os.makedirs('./dataset_check', exist_ok=True)
     print('Start check {} dataset'.format(name))
 
     instances, _ = parse_annotation(xml_dir, image_dir, labels, name)
-    i = 0
+    idx = 0
     for instance in tqdm(instances, desc='Make npy format {} dataset'.format(name)):
-        i += 1
+        idx += 1
         image_path = instance['filename']
         image = load_image(image_path)
 
@@ -30,7 +31,7 @@ def dataset_check(image_dir, xml_dir, labels, name):
                         1e-3 * image.shape[0],
                         (0, 255, 0), 1)
 
-        cv2.imwrite('./temp/{}.jpg'.format(i), image[..., -1])
+        cv2.imwrite('./dataset_check/{}.jpg'.format(idx), image[..., -1])
 
     print('End check {} dataset!'.format(name))
 
@@ -39,7 +40,7 @@ def build_npy(image_dir, xml_dir, labels, name):
     if not os.path.exists(image_dir):
         raise FileNotFoundError('{} is not exists'.format(image_dir))
 
-    print('Start making {} dataset'.format(name))
+    print('Start making {} dataset...'.format(name))
 
     instances, _ = parse_annotation(xml_dir, image_dir, labels, name)
     data_image = []

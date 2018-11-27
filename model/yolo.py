@@ -30,6 +30,7 @@ class YOLO:
         self.grid_h = self.__set_variable('grid_h', 13, config)
         self.grid_w = self.__set_variable('grid_w', 13, config)
         self.coord_scale = self.__set_variable('coord_scale', 5.0, config)
+        self.object_scale = self.__set_variable('object_scale', 5.0, config)
         self.no_object_scale = self.__set_variable('no_object_scale', 0.5, config)
         self.batch_size = self.__set_variable('batch_size', 32, config)
         self.pretrained_weight = self.__set_variable('pretrained_weight', None, config)
@@ -114,7 +115,7 @@ class YOLO:
 
         #TODO - Train 때만 compile 하도록 수정하기
         if model_compile:
-            model.compile(loss=self._compile_loss(grid_dims), optimizer=RMSprop(lr=self.lr))
+            model.compile(loss=self._compile_loss(grid_dims), optimizer=Adam(lr=self.lr))
 
         print("End Building Model...")
         return model
@@ -135,14 +136,14 @@ class YOLO:
             cell_y = tf.transpose(cell_x, (0, 2, 1, 3, 4))
             cell_grid = tf.tile(tf.concat([cell_x, cell_y], -1), [self.batch_size, 1, 1, self.box_num, 1])
 
-            # y_pred = tf.Print(y_pred, [tf.sigmoid(y_pred[0, 4, 2, 1, :2]) + tf.constant([2,4], dtype=tf.float32),
-            #                            tf.exp(y_pred[0, 4, 2, 1, 2:4])*tf.constant([1.87446, 2.06253], dtype=tf.float32),
-            #                            tf.arg_max(y_pred[0, 4, 2, 1, 5:], dimension=-1), tf.sigmoid(y_pred[0, 4, 2, 1, 4]),
+            # y_pred = tf.Print(y_pred, [tf.sigmoid(y_pred[0, 4, 2, 2, :2]) + tf.constant([2,4], dtype=tf.float32),
+            #                            tf.exp(y_pred[0, 4, 2, 2, 2:4])*tf.constant([3.66477, 2.27953], dtype=tf.float32),
+            #                            tf.arg_max(y_pred[0, 4, 2, 2, 5:], dimension=-1), tf.sigmoid(y_pred[0, 4, 2, 2, 4]),
             #                            tf.reduce_max(tf.sigmoid(y_pred[..., 4]))
             #                            ], message='y_pred',
             #                   summarize=1000)
-            # y_true = tf.Print(y_true, [y_true[0, 4, 2, 1]], message='y_true', summarize=1000)
-
+            # y_true = tf.Print(y_true, [y_true[0, 4, 2, 2]], message='y_true', summarize=1000)
+            y_pred = tf.Print(y_pred, [tf.truediv(tf.reduce_sum(y_true[..., 4] - tf.sigmoid(y_pred[..., 4])*y_true[..., 4]), tf.reduce_sum(y_true[..., 4]))], message='confidence', summarize=1000)
             pred_box_xy = tf.sigmoid(y_pred[..., :2]) + cell_grid
             pred_box_wh = tf.exp(y_pred[..., 2:4]) * np.reshape(self.anchors, [1, 1, 1, self.box_num, 2])
             pred_box_conf = tf.sigmoid(y_pred[..., 4])
@@ -172,7 +173,7 @@ class YOLO:
             true_box_conf = iou_scores * y_true[..., 4]
 
             conf_mask = (1 - y_true[..., 4]) * self.no_object_scale
-            conf_mask = conf_mask + y_true[..., 4]
+            conf_mask = conf_mask + y_true[..., 4] * self.object_scale
 
             true_box_class = tf.argmax(y_true[..., 5:], -1)
             class_mask = y_true[..., 4]
