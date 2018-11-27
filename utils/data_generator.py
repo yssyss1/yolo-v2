@@ -146,7 +146,7 @@ class BatchGenerator(Sequence):
 
         if augmentation:
 
-            scale = np.random.uniform() / 10. + 1.
+            scale = np.random.uniform() / 5. + 1.
             image = cv2.resize(image, None, fx=scale, fy=scale)
 
             max_offx = (scale - 1.) * w
