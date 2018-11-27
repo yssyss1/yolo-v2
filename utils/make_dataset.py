@@ -4,7 +4,7 @@ sys.path.append("..")
 import numpy as np
 import os
 from tqdm import tqdm
-from utils.data_utils import load_image, parse_annotation, draw_boxes, BoundBox
+from utils.data_utils import load_image, parse_annotation
 import cv2
 
 

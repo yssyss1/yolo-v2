@@ -8,7 +8,7 @@ import numpy as np
 
 class BatchGenerator(Sequence):
     def __init__(self, images, annotations, config, shuffle=True, augmentation=True, norm=True):
-        super().__init__()
+        super(BatchGenerator, self).__init__()
         self.generator = None
 
         self.images = images
@@ -24,7 +24,7 @@ class BatchGenerator(Sequence):
         self.anchors = [BoundBox(0, 0, config["ANCHORS"][2 * i], config["ANCHORS"][2 * i + 1]) for i in
                         range(int(len(config["ANCHORS"]) // 2))]
 
-        # https://github.com/aleju/imgaug에서 Data Augmentation Function들 참고할 것.
+        # https://github.com/aleju/imgaug
         self.aug_pipe = iaa.Sequential(
             [
                 iaa.Sometimes(0.2, [iaa.GaussianBlur((0, 2.0))]),
@@ -160,7 +160,7 @@ class BatchGenerator(Sequence):
             if flip > 0.5:
                 image = cv2.flip(image, 1)
 
-            #TODO Rotation
+            # TODO Add Data augmentation - Rotation
             image = self.aug_pipe.augment_image(image)
 
         image = cv2.resize(image, (image_height, image_width))

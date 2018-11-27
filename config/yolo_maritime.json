@@ -1,8 +1,8 @@
 {
-	"train_image_path": "./train_image.npy",
-	"train_annotation_path": "./train_annotation.npy",
-    "valid_image_path": "./valid_image.npy",
-    "valid_annotation_path": "./valid_annotation.npy",
+	"train_image_path": "/home/seok/object-detection/yolo-v2/train_image.npy",
+	"train_annotation_path": "/home/seok/object-detection/yolo-v2/train_annotation.npy",
+    "valid_image_path": "/home/seok/object-detection/yolo-v2/valid_image.npy",
+    "valid_annotation_path": "/home/seok/object-detection/yolo-v2/valid_annotation.npy",
     "labels": ["Ferry", "Buoy", "Vessel/ship", "Speed boat", "Boat", "Kayak", "Sail boat", "Swimming person", "Flying bird/plane", "Other"],
     "anchors": [0.57273, 0.677385, 1.87446, 2.06253, 3.33843, 5.47434, 7.88282, 3.52778, 9.77052, 9.16828],
     "box_num": 5,

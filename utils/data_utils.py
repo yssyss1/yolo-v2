@@ -126,12 +126,8 @@ def sigmoid(x):
     return 1. / (1. + np.exp(-x))
 
 
-def softmax(x, axis=-1, t=-100.):
+def softmax(x, axis=-1):
     x = x - np.max(x)
-
-    if np.min(x) < t:
-        x = x / np.min(x) * t
-
     e_x = np.exp(x)
 
     return e_x / e_x.sum(axis, keepdims=True)
@@ -154,13 +150,12 @@ def decode_netout(netout, shape_dims, anchors, nb_class, obj_threshold=0.3, nms_
                 classes = netout[row, col, b, 5:]
 
                 if np.sum(classes) > 0:
-                    x, y, w, h = netout[row, col, b, :4]
+                    x, y, w, h, confidence = netout[row, col, b, :5]
 
                     x = (col + sigmoid(x))
                     y = (row + sigmoid(y))
                     w = anchors[2 * b + 0] * np.exp(w)
                     h = anchors[2 * b + 1] * np.exp(h)
-                    confidence = netout[row, col, b, 4]
 
                     box = BoundBox(x - w / 2, y - h / 2, x + w / 2, y + h / 2, confidence, classes)
 

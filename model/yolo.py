@@ -1,17 +1,16 @@
 from keras.models import Model
-from keras.layers import Reshape, Conv2D, Input, MaxPooling2D, BatchNormalization, Lambda
+from keras.layers import Conv2D, Input, MaxPooling2D, BatchNormalization, Lambda
 from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.merge import concatenate
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
-from keras.optimizers import Adam, SGD, RMSprop
+from keras.optimizers import Adam
 import tensorflow as tf
 import numpy as np
-from utils.data_utils import parse_annotation
 from utils.data_generator import BatchGenerator
 import os
 import matplotlib.pyplot as plt
 import cv2
-from utils.data_utils import decode_netout, softmax, draw_boxes, load_image, compute_overlap, compute_ap, load_npy
+from utils.data_utils import decode_netout, draw_boxes, load_image, compute_overlap, compute_ap, load_npy
 from tqdm import tqdm
 
 
@@ -136,13 +135,6 @@ class YOLO:
             cell_y = tf.transpose(cell_x, (0, 2, 1, 3, 4))
             cell_grid = tf.tile(tf.concat([cell_x, cell_y], -1), [self.batch_size, 1, 1, self.box_num, 1])
 
-            # y_pred = tf.Print(y_pred, [tf.sigmoid(y_pred[0, 4, 2, 2, :2]) + tf.constant([2,4], dtype=tf.float32),
-            #                            tf.exp(y_pred[0, 4, 2, 2, 2:4])*tf.constant([3.66477, 2.27953], dtype=tf.float32),
-            #                            tf.arg_max(y_pred[0, 4, 2, 2, 5:], dimension=-1), tf.sigmoid(y_pred[0, 4, 2, 2, 4]),
-            #                            tf.reduce_max(tf.sigmoid(y_pred[..., 4]))
-            #                            ], message='y_pred',
-            #                   summarize=1000)
-            # y_true = tf.Print(y_true, [y_true[0, 4, 2, 2]], message='y_true', summarize=1000)
             y_pred = tf.Print(y_pred, [tf.truediv(tf.reduce_sum(y_true[..., 4] - tf.sigmoid(y_pred[..., 4])*y_true[..., 4]), tf.reduce_sum(y_true[..., 4]))], message='confidence', summarize=1000)
             pred_box_xy = tf.sigmoid(y_pred[..., :2]) + cell_grid
             pred_box_wh = tf.exp(y_pred[..., 2:4]) * np.reshape(self.anchors, [1, 1, 1, self.box_num, 2])
@@ -276,15 +268,41 @@ class YOLO:
         print("Load weight from {}".format(weight_path))
         self.model.load_weights(weight_path)
 
+        print("Start Inference...")
+
         image = load_image(image_path)
 
-        plt.figure(figsize=(10, 10))
+        self.prediction(image, obj_threshold, nms_threshold)
 
+        plt.figure(figsize=(10, 10))
+        plt.imshow(image)
+        plt.show()
+
+        print("End Inference!")
+
+    def inference_valid(self, weight_path, save_path, obj_threshold, nms_threshold):
+        if not os.path.exists(weight_path):
+            raise FileNotFoundError("{} is not exist".format(weight_path))
+
+        os.makedirs(save_path, exist_ok=True)
+
+        print("Load weight from {}".format(weight_path))
+        self.model.load_weights(weight_path)
+
+        print("Load valid data...")
+        valid_image = load_npy(self.valid_image_path)
+
+        for i, image in enumerate(tqdm(valid_image, desc='Validation data prediction')):
+            image = self.prediction(image, obj_threshold, nms_threshold)
+            cv2.imwrite(os.path.join(save_path, '{}.jpg'.format(i)), image[:, :, ::-1])
+
+        print('Result images are saved in {}'.format(save_path))
+        print('End valid inference!')
+
+    def prediction(self, image, obj_threshold, nms_threshold):
         input_image = cv2.resize(image, (self.image_height, self.image_width))
         input_image = input_image / 255.
         input_image = np.expand_dims(input_image, 0)
-
-        print("Start Inference...")
 
         dummy_input = np.zeros((1, 2))
         netout = self.model.predict([input_image, dummy_input])
@@ -299,10 +317,7 @@ class YOLO:
 
         image = draw_boxes(image, boxes, self.grid_h, self.grid_w, labels=self.labels)
 
-        plt.imshow(image)
-        plt.show()
-
-        print("End Inference...")
+        return image
 
     def mAP_evalutation(self, iou_threshold, weight_path):
         '''
@@ -326,7 +341,7 @@ class YOLO:
 
         valid_imgs = load_npy(self.valid_image_path)
         valid_annotations = load_npy(self.valid_annotation_path)
-        valid_generator = BatchGenerator(valid_imgs, valid_annotations, generator_config, augmentation=False)
+        valid_generator = BatchGenerator(valid_imgs, valid_annotations, generator_config, augmentation=False, shuffle=False)
         generator = valid_generator
 
         print('Load pretrained weight {}...'.format(weight_path))
@@ -335,7 +350,7 @@ class YOLO:
         all_detections = [[None for i in range(generator.num_classes())] for j in range(generator.size())]
         all_annotations = [[None for i in range(generator.num_classes())] for j in range(generator.size())]
 
-        dummy_input = np.zeros((1,2))
+        dummy_input = np.zeros((1, 2))
 
         for i in tqdm(range(generator.size()), desc='mAP evaluation'):
             image = generator.load_image(i)
@@ -358,7 +373,7 @@ class YOLO:
 
             score_sort = np.argsort(-score)
             pred_labels = pred_labels[score_sort]
-            pred_boxes  = pred_boxes[score_sort]
+            pred_boxes = pred_boxes[score_sort]
 
             for label in range(generator.num_classes()):
                 all_detections[i][label] = pred_boxes[pred_labels == label, :]
@@ -375,12 +390,14 @@ class YOLO:
             true_positives = np.zeros((0,))
             scores = np.zeros((0,))
             num_annotations = 0.0
+            detected_box = 0
 
             for i in range(generator.size()):
                 detections = all_detections[i][label]
                 annotations = all_annotations[i][label]
                 num_annotations += annotations.shape[0]
                 detected_annotations = []
+                detected_box += len(detections)
 
                 for d in detections:
                     scores = np.append(scores, d[4])
@@ -396,14 +413,15 @@ class YOLO:
 
                     if max_overlap >= iou_threshold and assigned_annotation not in detected_annotations:
                         false_positives = np.append(false_positives, 0)
-                        true_positives  = np.append(true_positives, 1)
+                        true_positives = np.append(true_positives, 1)
                         detected_annotations.append(assigned_annotation)
                     else:
                         false_positives = np.append(false_positives, 1)
-                        true_positives  = np.append(true_positives, 0)
+                        true_positives = np.append(true_positives, 0)
 
             if num_annotations == 0:
-                average_precisions[label] = 0
+                if detected_box != 0:
+                    average_precisions[label] = 0
                 continue
 
             indices = np.argsort(-scores)

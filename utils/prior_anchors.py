@@ -4,43 +4,46 @@ sys.path.append("..")
 import random
 import baker
 import numpy as np
-from utils.data_utils import parse_annotation
+from utils.data_utils import load_npy
 import json
+import os
 
 
-class PriorAnchors():
+class PriorAnchors:
     def __init__(self, config):
         self.num_anchors = config['box_num']
         self.train_annotation_path = config['train_annotation_path']
-        self.train_image_path = config['train_image_path']
         self.labels = config['labels']
         self.grid_w = config['grid_w']
         self.grid_h = config['grid_h']
         self.prior_anchors_result = './anchors.txt'
 
     def run_kmeans(self):
-        train_imgs, train_labels = parse_annotation(self.train_annotation_path,
-                                                    self.train_image_path,
-                                                    self.labels,
-                                                    'train')
+        if not os.path.exists(self.train_annotation_path):
+            raise FileNotFoundError('{} is not exists'.format(self.train_annotation_path))
+
+        print("Load train annotation...")
+        train_annotation = load_npy(self.train_annotation_path)
 
         annotations = []
 
-        for image in train_imgs:
-            cell_w = image['width'] / self.grid_w
-            cell_h = image['height'] / self.grid_h
+        for annotation in train_annotation:
+            cell_w = annotation['width'] / self.grid_w
+            cell_h = annotation['height'] / self.grid_h
 
-            for obj in image['object']:
+            for obj in annotation['object']:
                 relative_w = (float(obj['xmax']) - obj['xmin']) / cell_w
                 relatice_h = (float(obj["ymax"]) - obj['ymin']) / cell_h
                 annotations.append((relative_w, relatice_h))
 
         annotations = np.array(annotations)
+        print("Start K means Dimension Priors...")
         prior_anchors = self._kmeans(annotations)
 
         print('\naverage IOU for', self.num_anchors, 'anchors:', '%0.2f' % self._avg_iou(annotations, prior_anchors))
         print('\nprior anchors are saved in {}'.format(self.prior_anchors_result))
         np.savetxt(self.prior_anchors_result, prior_anchors)
+        print("End K means Dimension Priors!")
 
     def _kmeans(self, annotations):
         annotation_num = annotations.shape[0]
