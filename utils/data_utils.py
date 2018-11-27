@@ -64,7 +64,7 @@ def interval_overlap(interval_a, interval_b):
         else:
             return min(x2, x4) - x3
 
-# TODO - Deprecated
+
 def parse_annotation(ann_dir, img_dir, labels, data_name):
     if len(labels) == 0:
         raise ValueError("given label is not valid")
