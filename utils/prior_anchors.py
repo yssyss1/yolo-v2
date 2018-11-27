@@ -40,9 +40,9 @@ class PriorAnchors:
         print("Start K means Dimension Priors...")
         prior_anchors = self._kmeans(annotations)
 
-        print('\naverage IOU for', self.num_anchors, 'anchors:', '%0.2f' % self._avg_iou(annotations, prior_anchors))
+        print('\naverage IOU for', self.num_anchors, 'anchors:', '%.2f' % self._avg_iou(annotations, prior_anchors))
         print('\nprior anchors are saved in {}'.format(self.prior_anchors_result))
-        np.savetxt(self.prior_anchors_result, prior_anchors)
+        np.savetxt(self.prior_anchors_result, prior_anchors, fmt='%.5f')
         print("End K means Dimension Priors!")
 
     def _kmeans(self, annotations):
@@ -110,10 +110,10 @@ class PriorAnchors:
 
 @baker.command(
     params={
-        "config_path": "configuration file path - default: ./config/yolo.json",
+        "config_path": "configuration file path",
     }
 )
-def k_means_prior_anchors(config_path='../config/yolo.json'):
+def k_means_prior_anchors(config_path):
     with open(config_path) as config_file:
         config = json.load(config_file)
         prior_anchors = PriorAnchors(config)

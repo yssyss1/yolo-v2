@@ -76,11 +76,12 @@ def mat_to_xml(mat_path, image_path, out_path):
 
         frame = cv2.imread(os.path.join(image_path, base_name, base_name + '_0.jpg'))
         h, w, c = frame.shape
+        frame_num = len(obj_id)
 
-        for i in tqdm(range(len(obj_id)), desc='Mat file to xml file {}'.format(path.split('/')[-1])):
+        for i in tqdm(range(frame_num), desc='Mat file to xml file {}'.format(path.split('/')[-1])):
             image_name = base_name + '_{}.jpg'.format(i)
-
             annotation = xml_root(image_name, h, w)
+            # TODO empty frame
             instances = [{dict_key[0]: a, dict_key[1]: labels[b[0]-1]} for a, b in zip(bounding_box[i], obj_id[i])]
 
             for instance in instances:
@@ -142,6 +143,68 @@ def split_list(raw_list, split_ratio):
     return shuffled[:split_num], shuffled[split_num:]
 
 
+def extract_detection_dataset(mat_dir, video_dir, out_path):
+    if not os.path.exists(mat_dir):
+        raise FileNotFoundError('{} is not exists'.format(mat_dir))
+
+    if not os.path.exists(video_dir):
+        raise FileNotFoundError('{} is not exists'.format(video_dir))
+
+    dst_video_path = os.path.join(out_path, 'video')
+    dst_mat_path = os.path.join(out_path, 'gt')
+
+    os.makedirs(dst_video_path, exist_ok=True)
+    os.makedirs(dst_mat_path, exist_ok=True)
+
+    mat_list = glob(os.path.join(mat_dir, '*.mat'))
+
+    for mat_path in tqdm(mat_list):
+        base_name = mat_path[:-len('_ObjectGT.mat')].split('/')[-1]
+        video_path = os.path.join(video_dir, base_name + '.avi')
+
+        if os.path.exists(video_path):
+            shutil.copy2(video_path, dst_video_path)
+            shutil.copy2(mat_path, dst_mat_path)
+
+
+def check_valid_dataset(mat_dir, video_dir, invalid_out_dir):
+    if not os.path.exists(mat_dir):
+        raise FileNotFoundError('{} is not exists'.format(mat_dir))
+
+    if not os.path.exists(video_dir):
+        raise FileNotFoundError('{} is not exists'.format(video_dir))
+
+    gt_out = os.path.join(invalid_out_dir, 'gt')
+    videos_out = os.path.join(invalid_out_dir, 'videos')
+
+    os.makedirs(gt_out, exist_ok=True)
+    os.makedirs(videos_out, exist_ok=True)
+
+    video_list = glob(os.path.join(video_dir, '*.avi'))
+    invalid_list = video_list.copy()
+
+    for video_path in tqdm(video_list):
+        base_name = video_path.split('/')[-1].split('.')[0]
+        cap = cv2.VideoCapture(video_path)
+        frame_length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        mat_path = os.path.join(mat_dir, base_name + '_ObjectGT.mat')
+        mat = loadmat(mat_path)
+        mat_length = len(mat['structXML']['Object'][0])
+
+        if frame_length == mat_length:
+            invalid_list.remove(video_path)
+        else:
+            print('Different Length {}'.format(base_name))
+            print('Frame length {}'.format(frame_length))
+            print('Mat length {}'.format(mat_length))
+
+            shutil.move(video_path, videos_out)
+            shutil.move(mat_path, gt_out)
+
+    print('\nList - frame length and mat length different')
+    print(invalid_list)
+
+
 if __name__ == '__main__':
-    # make_dataset('/home/seok/xmls', '/home/seok/frames', '/home/seok/singapore_maritime', 0.2, 0.2)
     baker.run()

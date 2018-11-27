@@ -112,7 +112,7 @@ class YOLO:
         model = Model([input_image, grid_dims], output)
         model.summary()
 
-        #TODO - Train 때만 compile 하도록 수정하기
+        # TODO - Only for training
         if model_compile:
             model.compile(loss=self._compile_loss(grid_dims), optimizer=Adam(lr=self.lr))
 

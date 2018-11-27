@@ -30,6 +30,7 @@ class BatchGenerator(Sequence):
                 iaa.Sometimes(0.2, [iaa.GaussianBlur((0, 2.0))]),
                 iaa.Sometimes(0.5, [iaa.Add((-25, 25))]),
             ]
+
         )
 
         if shuffle:
