@@ -81,5 +81,21 @@ def inference_valid(weight_path, config_path,  save_path='./results/valid', obj_
         yolo.inference_valid(weight_path, save_path, float(obj_threshold), float(nms_threshold))
 
 
+@baker.command(
+    params={
+        "weight_path": "trained weight path - weight path which will be used for prediction",
+        "config_path": "configuration file path",
+        "video_path": "video path",
+        "obj_threshold": "obj threshold (confidence * probability) - default: 0.3",
+        "nms_threshold": "nms threshold (threshold for non maximum suppression)- default: 0.3"
+    }
+)
+def video_tracking(weight_path, config_path, video_path, obj_threshold=0.3, nms_threshold=0.3):
+    with open(config_path) as config_file:
+        config = json.load(config_file)
+        yolo = YOLO(config)
+        yolo.video_tracking(weight_path, video_path, float(obj_threshold), float(nms_threshold))
+
+
 if __name__ == '__main__':
     baker.run()

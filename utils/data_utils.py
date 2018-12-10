@@ -201,6 +201,20 @@ def draw_boxes(image, boxes, grid_h, grid_w):
     return image
 
 
+def get_boxes(image, boxes, grid_h, grid_w):
+    image_h, image_w, _ = image.shape
+
+    box_list = []
+    for box in boxes:
+        xmin = max(int(box.xmin * image_w / grid_w), 0)
+        ymin = max(int(box.ymin * image_h / grid_h), 0)
+        xmax = min(int(box.xmax * image_w / grid_w), image_w)
+        ymax = min(int(box.ymax * image_h / grid_h), image_h)
+
+        box_list.append([xmin, ymin, xmax - xmin, ymax - ymin])
+
+    return box_list
+
 def load_image(image_path):
     image = cv2.imread(image_path)
     image = np.array(image[..., ::-1])

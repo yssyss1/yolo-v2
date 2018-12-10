@@ -10,8 +10,9 @@ from utils.data_generator import BatchGenerator
 import os
 import matplotlib.pyplot as plt
 import cv2
-from utils.data_utils import decode_netout, draw_boxes, load_image, compute_overlap, compute_ap, load_npy
+from utils.data_utils import decode_netout, draw_boxes, load_image, compute_overlap, compute_ap, load_npy, get_boxes
 from tqdm import tqdm
+import copy
 
 
 class YOLO:
@@ -287,7 +288,7 @@ class YOLO:
         print('Result images are saved in {}'.format(save_path))
         print('End valid inference!')
 
-    def prediction(self, image, obj_threshold, nms_threshold):
+    def prediction(self, image, obj_threshold, nms_threshold, return_box=False):
         input_image = cv2.resize(image, (self.image_height, self.image_width))
         input_image = input_image / 255.
         input_image = np.expand_dims(input_image, 0)
@@ -303,8 +304,11 @@ class YOLO:
                               nms_threshold=nms_threshold
                               )
 
-        image = draw_boxes(image, boxes, self.grid_h, self.grid_w)
+        if return_box:
+            box_list = get_boxes(image, boxes, self.grid_h, self.grid_w)
+            return box_list
 
+        image = draw_boxes(image, boxes, self.grid_h, self.grid_w)
         return image
 
     def mAP_evalutation(self, weight_path, iou_threshold, obj_threshold, nms_threshold):
@@ -454,6 +458,76 @@ class YOLO:
         cap.release()
         cv2.destroyAllWindows()
         print('Video capture end!')
+
+    def video_tracking(self, weight_path, video_path, obj_threshold, nms_threshold):
+        if not os.path.exists(video_path):
+            raise FileNotFoundError('{} is not exists'.format(video_path))
+
+        if not os.path.exists(weight_path):
+            raise FileNotFoundError('{} is not exists'.format(weight_path))
+
+        print('Load weight from {}'.format(weight_path))
+        self.model.load_weights(weight_path)
+
+        major_ver, minor_ver, subminor_ver = cv2.__version__.split('.')
+        tracker_types = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'MOSSE', 'CSRT']
+        tracker_type = tracker_types[0]
+
+        print('Start tracking {}...'.format(video_path))
+        cap = cv2.VideoCapture(video_path)
+        ret, frame = cap.read()
+        frame = frame[..., ::-1]
+        box_list = self.prediction(frame, obj_threshold, nms_threshold, return_box=True)
+
+        trackers = []
+
+        for i in range(len(box_list)):
+            if int(minor_ver) < 3:
+                trackers.append(cv2.Tracker_create(tracker_type))
+            else:
+                if tracker_type == 'BOOSTING':
+                    trackers.append(cv2.TrackerBoosting_create())
+                if tracker_type == 'MIL':
+                    trackers.append(cv2.TrackerMIL_create())
+                if tracker_type == 'KCF':
+                    trackers.append(cv2.TrackerKCF_create())
+                if tracker_type == 'TLD':
+                    trackers.append(cv2.TrackerTLD_create())
+                if tracker_type == 'MEDIANFLOW':
+                    trackers.append(cv2.TrackerMedianFlow_create())
+                if tracker_type == 'GOTURN':
+                    trackers.append(cv2.TrackerGOTURN_create())
+                if tracker_type == 'MOSSE':
+                    trackers.append(cv2.TrackerMOSSE_create())
+                if tracker_type == "CSRT":
+                    trackers.append(cv2.TrackerCSRT_create())
+
+        for i, bbox in enumerate(box_list):
+            trackers[i].init(frame, tuple(bbox))
+
+        while cap.isOpened():
+            ret, frame = cap.read()
+
+            if ret:
+                boxes = []
+
+                for tracker in trackers:
+                    success, box = tracker.update(frame)
+                    boxes.append(box)
+
+                for i, newbox in enumerate(boxes):
+                    p1 = (int(newbox[0]), int(newbox[1]))
+                    p2 = (int(newbox[0] + newbox[2]), int(newbox[1] + newbox[3]))
+                    cv2.rectangle(frame, p1, p2, (0, 0, 255), 2, 1)
+
+                cv2.imshow('frame', frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            else:
+                break
+        print('End tracking {}!'.format(video_path))
+        cap.release()
+        cv2.destroyAllWindows()
 
     def __set_variable(self, key, default_value, config):
         return config[key] if key in config.keys() else default_value
