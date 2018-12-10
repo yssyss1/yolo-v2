@@ -13,11 +13,20 @@ labels = ["Ferry", "Buoy", "Vessel/ship", "Speed boat", "Boat", "Kayak", "Sail b
           "Flying bird/plane", "Other"]
 
 
-def dataset_check(image_dir, xml_dir, labels, name):
+@baker.command(
+    params={
+        "image_dir": "directory which containing image files",
+        "xml_dir": "directory which containing xml annotation files",
+        "labels": "configuration file path, json file will be used to parse labels' information",
+        "save_path": "directory in which results will be saved",
+        "name": "dataset name",
+    }
+)
+def dataset_check(image_dir, xml_dir, save_path, name, labels=labels):
     if not os.path.exists(image_dir):
         raise FileNotFoundError('{} is not exists'.format(image_dir))
 
-    os.makedirs('./dataset_check', exist_ok=True)
+    os.makedirs('../{}'.format(save_path), exist_ok=True)
     print('Start check {} dataset'.format(name))
 
     instances, _ = parse_annotation(xml_dir, image_dir, labels, name)
@@ -37,7 +46,7 @@ def dataset_check(image_dir, xml_dir, labels, name):
                         1e-3 * image.shape[0],
                         (0, 255, 0), 1)
 
-        cv2.imwrite('./dataset_check/{}.jpg'.format(idx), image[..., -1])
+        cv2.imwrite('../{}/{}.jpg'.format(save_path, idx), image[..., ::-1])
 
     print('End check {} dataset!'.format(name))
 

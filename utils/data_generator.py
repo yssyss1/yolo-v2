@@ -39,9 +39,6 @@ class BatchGenerator(Sequence):
     def __len__(self):
         return int(np.ceil(float(len(self.annotations)) / self.config["BATCH_SIZE"]))
 
-    def num_classes(self):
-        return len(self.config["LABELS"])
-
     def size(self):
         return len(self.annotations)
 
@@ -52,7 +49,7 @@ class BatchGenerator(Sequence):
         annots = []
 
         for obj in self.annotations[i]['object']:
-            annot = [obj['xmin'], obj['ymin'], obj['xmax'], obj['ymax'], self.config['LABELS'].index(obj['name'])]
+            annot = [obj['xmin'], obj['ymin'], obj['xmax'], obj['ymax'], 1]
             annots += [annot]
 
         if len(annots) == 0:
@@ -83,7 +80,7 @@ class BatchGenerator(Sequence):
 
         x_batch = np.zeros((self.config["BATCH_SIZE"], image_height, image_width, 3))
         y_batch = np.zeros((self.config["BATCH_SIZE"], grid_h, grid_w, self.config["BOX"],
-                            4 + 1 + self.config["CLASS"]))
+                            4 + 1 + 1))
 
         for idx in self.batch_idx[l_bound:r_bound]:
             batch_image = self.images[idx]
@@ -92,7 +89,7 @@ class BatchGenerator(Sequence):
             img, all_objs = self.get_image_with_box(batch_image, batch_annotations, image_height, image_width, augmentation=self.augmentation)
 
             for obj in all_objs:
-                if obj["xmax"] > obj["xmin"] and obj["ymax"] > obj["ymin"] and obj["name"] in self.config["LABELS"]:
+                if obj["xmax"] > obj["xmin"] and obj["ymax"] > obj["ymin"]:
                     center_x = .5 * (obj["xmin"] + obj["xmax"])
                     center_x = center_x / (float(image_width) / grid_w)
                     center_y = .5 * (obj["ymin"] + obj["ymax"])
@@ -102,8 +99,6 @@ class BatchGenerator(Sequence):
                     grid_y = int(np.floor(center_y))
 
                     if grid_x < grid_w and grid_y < grid_h:
-                        class_idx = self.config["LABELS"].index(obj["name"])
-
                         center_w = (obj["xmax"] - obj["xmin"]) / (
                                 float(image_width) / grid_w)
                         center_h = (obj["ymax"] - obj["ymin"]) / (
@@ -129,12 +124,12 @@ class BatchGenerator(Sequence):
 
                         y_batch[instance_count, grid_y, grid_x, best_anchor, 0:4] = box
                         y_batch[instance_count, grid_y, grid_x, best_anchor, 4] = 1.
-                        y_batch[instance_count, grid_y, grid_x, best_anchor, 5 + class_idx] = 1
+                        y_batch[instance_count, grid_y, grid_x, best_anchor, 5] = 1.
 
             x_batch[instance_count] = normalize(img) if self.norm else img
             instance_count += 1
 
-        y_batch = np.reshape(y_batch, (self.config["BATCH_SIZE"], grid_h, grid_w, self.config["BOX"]*(4 + 1 + self.config["CLASS"])))
+        y_batch = np.reshape(y_batch, (self.config["BATCH_SIZE"], grid_h, grid_w, self.config["BOX"]*(4 + 1 + 1)))
         return [x_batch, grid_dims], y_batch
 
     def on_epoch_end(self):

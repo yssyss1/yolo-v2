@@ -13,7 +13,6 @@ class PriorAnchors:
     def __init__(self, config):
         self.num_anchors = config['box_num']
         self.train_annotation_path = config['train_annotation_path']
-        self.labels = config['labels']
         self.grid_w = config['grid_w']
         self.grid_h = config['grid_h']
         self.prior_anchors_result = './anchors.txt'

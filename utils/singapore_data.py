@@ -48,8 +48,8 @@ def frame_extraction(video_path, out_path):
                 break
 
         time_end = time.time()
-        print ("Done extracting frames.\n%d frames extracted" % cnt)
-        print ("It took %d seconds for extraction" % (time_end-time_start))
+        print("Done extracting frames.\n%d frames extracted" % cnt)
+        print("It took %d seconds for extraction" % (time_end-time_start))
         cap.release()
 
 

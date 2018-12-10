@@ -71,6 +71,7 @@ def parse_annotation(ann_dir, img_dir, labels, data_name):
 
     print("Start Parsing {} data annotions...".format(data_name))
 
+    check_list = ['Vessel/ship', "Speed boat", "Ferry", "Boat", "Kayak", "Sail boat"]
     all_imgs = []
     seen_labels = {}
 
@@ -91,15 +92,14 @@ def parse_annotation(ann_dir, img_dir, labels, data_name):
 
                 for attr in list(elem):
                     if "name" in attr.tag:
-                        obj["name"] = attr.text
+                        if attr.text not in check_list:
+                            break
 
-                        if obj["name"] in seen_labels:
-                            seen_labels[obj["name"]] += 1
-                        else:
-                            seen_labels[obj["name"]] = 1
+                        obj["name"] = attr.text
 
                         if len(labels) > 0 and obj["name"] not in labels:
                             break
+
                         else:
                             img["object"] += [obj]
 
@@ -123,6 +123,7 @@ def parse_annotation(ann_dir, img_dir, labels, data_name):
 
 
 def sigmoid(x):
+    x = np.array(x, dtype=np.float128)
     return 1. / (1. + np.exp(-x))
 
 
@@ -140,8 +141,8 @@ def decode_netout(netout, shape_dims, anchors, nb_class, obj_threshold=0.3, nms_
     boxes = []
 
     netout[..., 4] = sigmoid(netout[..., 4])
-    netout[..., 5:] = netout[..., 4][..., np.newaxis] * softmax(netout[..., 5:])
-    netout[..., 5:] *= netout[..., 5:] > obj_threshold
+    netout[..., 5] = netout[..., 4] * sigmoid(netout[..., 5])
+    netout[..., 5] *= netout[..., 5] > obj_threshold
 
     for row in range(grid_h):
         for col in range(grid_w):
@@ -181,7 +182,7 @@ def decode_netout(netout, shape_dims, anchors, nb_class, obj_threshold=0.3, nms_
     return boxes
 
 
-def draw_boxes(image, boxes, grid_h, grid_w, labels):
+def draw_boxes(image, boxes, grid_h, grid_w):
     image_h, image_w, _ = image.shape
 
     for box in boxes:
@@ -192,7 +193,7 @@ def draw_boxes(image, boxes, grid_h, grid_w, labels):
 
         cv2.rectangle(image, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
         cv2.putText(image,
-                    labels[box.get_label()] + " " + str(box.get_score()),
+                    'Ship' + " " + str(box.get_score()),
                     (xmin, ymin - 5),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     1e-3 * image_h,
@@ -202,7 +203,7 @@ def draw_boxes(image, boxes, grid_h, grid_w, labels):
 
 def load_image(image_path):
     image = cv2.imread(image_path)
-    image = np.array(image[:, :, ::-1])
+    image = np.array(image[..., ::-1])
 
     return image
 
