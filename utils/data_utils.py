@@ -71,7 +71,7 @@ def parse_annotation(ann_dir, img_dir, labels, data_name):
 
     print("Start Parsing {} data annotions...".format(data_name))
 
-    check_list = ['Vessel/ship', "Speed boat", "Ferry", "Boat", "Kayak", "Sail boat"]
+    check_list = ['Ship', 'Speed boat', 'Sail boat', 'Buoy', 'Other']
     all_imgs = []
     seen_labels = {}
 
