@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import cv2
 from utils.data_utils import decode_netout, draw_boxes, load_image, compute_overlap, compute_ap, load_npy
 from tqdm import tqdm
+import time
 
 
 class YOLO:
@@ -319,7 +320,7 @@ class YOLO:
 
         return image
 
-    def mAP_evalutation(self, iou_threshold, weight_path):
+    def mAP_evalutation(self, weight_path, iou_threshold, obj_threshold, nms_threshold):
         '''
         Reference this blog
         https://datascience.stackexchange.com/questions/25119/how-to-calculate-map-for-detection-task-for-the-pascal-voc-challenge
@@ -361,7 +362,7 @@ class YOLO:
             input_image = np.expand_dims(input_image, 0)
 
             netout = self.model.predict([input_image, dummy_input])
-            pred_boxes = decode_netout(netout[0], (self.grid_h, self.grid_w, self.box_num, 4 + 1 + self.class_num), self.anchors, self.class_num)
+            pred_boxes = decode_netout(netout[0], (self.grid_h, self.grid_w, self.box_num, 4 + 1 + self.class_num), self.anchors, self.class_num, obj_threshold, nms_threshold)
 
             score = np.array([box.score for box in pred_boxes])
             pred_labels = np.array([box.label for box in pred_boxes])
@@ -454,6 +455,7 @@ class YOLO:
         print('Video capture start!')
 
         while True:
+            start = time.time()
             ret, frame = cap.read()
 
             if ret:
@@ -472,8 +474,19 @@ class YOLO:
                                       nb_class=self.class_num)
 
                 frame = draw_boxes(frame, boxes, self.grid_h, self.grid_w, labels=self.labels)
+                end = time.time()
+                seconds = end - start
+                print(seconds)
+                fps = 1. / seconds
 
-                cv2.imshow('yolo~~~~', frame)
+                cv2.putText(frame,
+                            "fps : {}".format(int(fps)),
+                            (0, 20),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.8,
+                            (0, 255, 0), 1)
+
+                cv2.imshow('Object Detection', frame)
 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break

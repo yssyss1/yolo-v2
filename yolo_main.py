@@ -38,11 +38,11 @@ def inference(weight_path, image_path, config_path, obj_threshold=0.3, nms_thres
         "iou_threshold": "mAP evalution threshold - default: 0.5",
     }
 )
-def evaluate(weight_path, config_path, iou_threshold=0.5):
+def evaluate(weight_path, config_path, iou_threshold=0.5, obj_threshold=0.3, nms_threshold=0.3):
     with open(config_path) as config_file:
         config = json.load(config_file)
         yolo = YOLO(config)
-        yolo.mAP_evalutation(float(iou_threshold), weight_path)
+        yolo.mAP_evalutation(weight_path, float(iou_threshold), float(obj_threshold), float(nms_threshold))
 
 
 @baker.command(
