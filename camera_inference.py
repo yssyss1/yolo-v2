@@ -16,12 +16,12 @@ label = ["person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "
           "hair drier", "toothbrush"]
 
 
-def show_me_camera(model_path, obj_threshold, nms_threshold):
+def show_me_camera(model_path, obj_threshold=0.3, nms_threshold=0.3):
     if not os.path.exists(model_path):
         raise FileNotFoundError('{} is not exists'.format(model_path))
 
     print('Load weight from {}'.format(model_path))
-    model = load_model('./yolov2_ship_model.h5', custom_objects={'tf': tf})
+    model = load_model(model_path, custom_objects={'tf': tf})
 
     cap = cv2.VideoCapture(0)
 
@@ -39,8 +39,7 @@ def show_me_camera(model_path, obj_threshold, nms_threshold):
             input_image = input_image / 255.
             input_image = np.expand_dims(input_image, 0)
 
-            dummy_input = np.zeros((1, 2))
-            netout = model.predict([input_image, dummy_input])
+            netout = model.predict(input_image)
 
             boxes = decode_netout(netout[0],
                                   shape_dims=(13, 13, 5, 4 + 1 + 80),
@@ -207,3 +206,7 @@ def interval_overlap(interval_a, interval_b):
             return 0
         else:
             return min(x2, x4) - x3
+
+
+if __name__ == '__main__':
+    show_me_camera('/home/seok/yolo_model.h5')
