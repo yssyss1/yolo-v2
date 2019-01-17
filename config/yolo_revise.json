@@ -1,0 +1,25 @@
+{
+	"train_image_path": "/home/seok/object-detection/yolo-v2/train_refine_image.npy",
+	"train_annotation_path": "/home/seok/object-detection/yolo-v2/train_refine_annotation.npy",
+    "valid_image_path": "/home/seok/object-detection/yolo-v2/valid_refine_image.npy",
+    "valid_annotation_path": "/home/seok/object-detection/yolo-v2/valid_refine_annotation.npy",
+    "labels": ["Ship", "Speed boat", "Sail boat", "Buoy", "Other"],
+    "anchors": [0.36850, 0.37327, 1.15541, 0.59031, 1.95922, 1.56846, 4.04224, 2.74985, 0.71450, 1.14227],
+    "box_num": 5,
+    "batch_size": 1,
+    "grid_w": 13,
+    "grid_h": 13,
+    "coord_scale": 5.0,
+    "object_scale": 5.0,
+    "no_object_scale": 0.5,
+    "image_width": 416,
+    "image_height": 416,
+    "min_lr": 0.5E-8,
+    "lr": 1E-4,
+    "lr_decay_rate": 0.5,
+    "pretrained_weight": "./yolo_v2.h5",
+    "save_path": "./results/revised/",
+    "epoch": 1000000,
+    "multi_scale_training": true
+}
+

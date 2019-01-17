@@ -3,7 +3,7 @@ from keras.layers import Conv2D, Input, MaxPooling2D, BatchNormalization, Lambda
 from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.merge import concatenate
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
-from keras.optimizers import Adam
+from keras.optimizers import Adam, RMSprop
 import tensorflow as tf
 import numpy as np
 from utils.data_generator import BatchGenerator
@@ -115,7 +115,7 @@ class YOLO:
 
         # TODO - Only for training
         if model_compile:
-            model.compile(loss=self._compile_loss(grid_dims), optimizer=Adam(lr=self.lr))
+            model.compile(loss=self._compile_loss(grid_dims), optimizer=RMSprop(lr=self.lr))
 
         print("End Building Model...")
         return model
@@ -180,6 +180,8 @@ class YOLO:
             loss_conf = tf.reduce_sum(tf.square(true_box_conf - pred_box_conf) * conf_mask) / (nb_conf_box + 1e-6) / 2.
             loss_class = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=true_box_class, logits=pred_box_class)
             loss_class = tf.reduce_sum(loss_class * class_mask) / (nb_class_box + 1e-6)
+            loss_class = tf.reduce_sum(loss_class * class_mask) / (nb_class_box + 1e-6)
+            loss_cc = tf.reduce_sum(true_box_conf)
 
             loss = loss_xy + loss_wh + loss_conf + loss_class
 
@@ -223,7 +225,7 @@ class YOLO:
 
         train_imgs = load_npy(self.train_image_path)
         train_annotations = load_npy(self.train_annotation_path)
-        train_generator = BatchGenerator(train_imgs, train_annotations, generator_config, augmentation=True, shuffle=True)
+        train_generator = BatchGenerator(train_imgs, train_annotations, generator_config, augmentation=True, shuffle=False)
 
         valid_imgs = load_npy(self.valid_image_path)
         valid_annotations = load_npy(self.valid_annotation_path)
@@ -446,7 +448,6 @@ class YOLO:
 
         print('Load weight from {}'.format(weight_path))
         self.model.load_weights(weight_path)
-
         cap = cv2.VideoCapture(0)
 
         if not cap.isOpened():
