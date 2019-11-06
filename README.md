@@ -52,7 +52,7 @@ python coco2voc.py change_annotations /somepath/COCO val /somepath/저장경로
 ### 1.3 Convert pretrained weight (yolov2.weights) to keras version (.h5)
 
 ```
-python weight_convert.py convert_yolo_weight_keras /somepath/yolov2.weights /somepath/저장경
+python weight_convert.py convert_yolo_weight_keras /somepath/yolov2.weights /somepath/저장경로
 ```
 
 ## 2. Training & Inference
